@@ -205,8 +205,8 @@ function makeCharacter(club, role, teamIndex) {
     y: HEIGHT / 2,
     width: role === "goalkeeper" ? 88 : 100,
     height: role === "goalkeeper" ? 105 : 115,
-    hitWidth: role === "goalkeeper" ? 48 : 54,
-    hitHeight: role === "goalkeeper" ? 76 : 82,
+    hitWidth: 64,
+    hitHeight: 64,
     direction: teamIndex === 0 ? 1 : -1
   };
 }
@@ -226,8 +226,8 @@ function placeTeams() {
   const right = matchTeams[1];
 
   left.goalkeeper.x = 18;
-  left.player.x = 155;
-  right.player.x = WIDTH - 155 - right.player.width;
+  left.player.x = 185;
+  right.player.x = WIDTH - 185 - right.player.width;
   right.goalkeeper.x = WIDTH - 18 - right.goalkeeper.width;
 
   [left, right].forEach(team => {
@@ -241,13 +241,13 @@ function placeTeams() {
 function resetBall(direction = Math.random() < 0.5 ? -1 : 1) {
   ball.x = WIDTH / 2;
   ball.y = HEIGHT / 2;
-  ball.radius = 13;
+  ball.radius = 15;
   ball.vx = direction * 5.2;
   ball.vy = (Math.random() * 2 - 1) * 2.8;
   ball.lastHit = null;
 }
 
-let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 13, vx: 5.2, vy: 2, lastHit: null };
+let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 15, vx: 5.2, vy: 2, lastHit: null };
 
 function beginMatch() {
   const firstFolder = document.getElementById("teamOneSelect").value;
@@ -337,7 +337,7 @@ function moveCharacter(character, team, dt) {
     const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? 0.95 : 0.78);
     if (Math.abs(difference) > 4) dy = Math.sign(difference);
     if (character.role === "player") {
-      const homeX = WIDTH - 155 - character.width;
+      const homeX = WIDTH - 185 - character.width;
       const targetX = Math.max(WIDTH * 0.55, Math.min(WIDTH * 0.82, ball.x + 85));
       character.x += Math.sign(targetX - character.x) * Math.min(Math.abs(targetX - character.x), cpuSpeed * 0.65);
     }
@@ -517,7 +517,7 @@ function drawBall() {
     ctx.drawImage(
       ballImage,
       ballFrame * frameWidth, 0, frameWidth, frameHeight,
-      ball.x - 17, ball.y - 17, 34, 34
+      ball.x - 19, ball.y - 19, 38, 38
     );
   } else {
     ctx.beginPath();
