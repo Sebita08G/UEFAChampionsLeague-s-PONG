@@ -133,3 +133,5 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
   .match-clock span { font-size: 8px; }
   .game-footer { align-items: flex-start; flex-direction: column; }
 }
+.primary-button:disabled { cursor: not-allowed; opacity: .45; filter: grayscale(.5); transform: none; }
+.club-card img.shield-error { opacity: .35; }
