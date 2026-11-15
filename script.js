@@ -196,6 +196,8 @@ function placeTeams() {
   right.goalkeeper.x = WIDTH - 18 - right.goalkeeper.width;
 
   [left, right].forEach(team => {
+    team.goalkeeper.teamIndex = team.index;
+    team.player.teamIndex = team.index;
     team.goalkeeper.y = HEIGHT / 2 - team.goalkeeper.height / 2;
     team.player.y = HEIGHT / 2 - team.player.height / 2;
   });
@@ -216,7 +218,11 @@ function beginMatch() {
   const firstIndex = Number(document.getElementById("teamOneSelect").value);
   const secondIndex = Number(document.getElementById("teamTwoSelect").value);
   selectedTeams = [clubs[firstIndex], clubs[secondIndex]];
-  matchTeams = selectedTeams.map((club, index) => createTeam(club, index));
+  matchTeams = selectedTeams.map((club, index) => {
+    const team = createTeam(club, index);
+    team.controlPlayer = index === 0 ? 1 : (gameMode === "pvp" ? 2 : 0);
+    return team;
+  });
   score = [0, 0];
   remainingTime = TOTAL_SECONDS;
   currentHalf = 1;
@@ -267,8 +273,8 @@ function getSide(team) {
 
 function moveCharacter(character, team, dt) {
   const side = getSide(team);
-  const isHuman = side === 0 || gameMode === "pvp";
-  const keysForTeam = side === 0
+  const isHuman = Boolean(team.controlPlayer);
+  const keysForTeam = team.controlPlayer === 1
     ? { up: "w", down: "s", left: "a", right: "d" }
     : { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
 
@@ -407,6 +413,7 @@ function beginSecondHalf() {
   currentHalf = 2;
   remainingTime = HALF_SECONDS;
   matchTeams.reverse();
+  score.reverse();
   matchTeams.forEach((team, index) => { team.index = index; });
   placeTeams();
   resetBall(Math.random() < 0.5 ? -1 : 1);
@@ -525,11 +532,18 @@ document.getElementById("introStart").addEventListener("click", () => {
   startMenuMusic();
 });
 document.getElementById("friendlyMode").addEventListener("click", () => {
-  gameMode = "cpu";
-  document.getElementById("teamTwoLabel").textContent = "CPU";
-  document.getElementById("selectionHint").textContent = "Jugador 1: W A S D · CPU: control automático";
+  updateModeSelection();
   showScreen("clubs");
 });
+document.getElementById("gameModeSelect").addEventListener("change", updateModeSelection);
+
+function updateModeSelection() {
+  gameMode = document.getElementById("gameModeSelect").value;
+  document.getElementById("teamTwoLabel").textContent = gameMode === "pvp" ? "JUGADOR 2" : "CPU";
+  document.getElementById("selectionHint").textContent = gameMode === "pvp"
+    ? "Jugador 1: W A S D · Jugador 2: FLECHAS"
+    : "Jugador 1: W A S D · CPU: control automático";
+}
 document.getElementById("teamOneSelect").addEventListener("change", updateClubCards);
 document.getElementById("teamTwoSelect").addEventListener("change", updateClubCards);
 document.getElementById("backToMenu").addEventListener("click", () => showScreen("menu"));
