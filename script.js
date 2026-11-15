@@ -7,8 +7,11 @@ const WIN_SCORE = 10;
 
 // Coordenadas provisionales del campo (canvas: 960 x 540).
 // Se ajustarán con F3 activado cuando midamos el césped del estadio.
-const FIELD = { left: 70, right: 890, top: 45, bottom: 495 };
-const GOAL = { top: 220, bottom: 320, depth: 24 };
+const FIELD = { left: 32, right: 930, top: 170, bottom: 470 };
+const GOAL = {
+  left: { x: 8, y: 238, width: 83, height: 151 },
+  right: { x: 870, y: 240, width: 80, height: 150 }
+};
 let debugHitboxes = false;
 let pointerPosition = { x: 0, y: 0 };
 
@@ -405,20 +408,7 @@ function circleIntersectsRect(circle, rect) {
 }
 
 function getGoalHitboxes() {
-  return {
-    left: {
-      x: FIELD.left - GOAL.depth,
-      y: GOAL.top,
-      width: GOAL.depth,
-      height: GOAL.bottom - GOAL.top
-    },
-    right: {
-      x: FIELD.right,
-      y: GOAL.top,
-      width: GOAL.depth,
-      height: GOAL.bottom - GOAL.top
-    }
-  };
+  return GOAL;
 }
 
 function updateBall(dt) {
