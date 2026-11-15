@@ -4,6 +4,14 @@ const ctx = canvas.getContext("2d");
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const WIN_SCORE = 10;
+
+// Coordenadas provisionales del campo (canvas: 960 x 540).
+// Se ajustarán con F3 activado cuando midamos el césped del estadio.
+const FIELD = { left: 70, right: 890, top: 45, bottom: 495 };
+const GOAL = { top: 220, bottom: 320, depth: 24 };
+let debugHitboxes = false;
+let pointerPosition = { x: 0, y: 0 };
+
 const HALF_SECONDS = 150;
 const TOTAL_SECONDS = HALF_SECONDS * 2;
 const SPRITE_COLUMNS = 5;
@@ -16,7 +24,6 @@ const ASSET = {
   stage: "images/stages/stadium.png",
   ball: "images/items/ball.png",
   menuMusic: "audio/music/main_menu.mp3",
-  matchMusic: "audio/music/champions.mp3",
   goal: "audio/sounds/GOAL.mp3",
   missed: "audio/sounds/MISSED.mp3",
   kick: "audio/sounds/kick.mp3",
@@ -33,17 +40,14 @@ const screens = {
 const imageCache = new Map();
 const audio = {
   menu: new Audio(ASSET.menuMusic),
-  match: new Audio(ASSET.matchMusic),
   goal: new Audio(ASSET.goal),
   missed: new Audio(ASSET.missed),
   kick: new Audio(ASSET.kick),
   crowd: new Audio(ASSET.crowd)
 };
 audio.menu.loop = true;
-audio.match.loop = true;
 audio.crowd.loop = true;
 audio.menu.volume = 0.45;
-audio.match.volume = 0.38;
 audio.crowd.volume = 0.28;
 audio.goal.volume = 0.8;
 audio.kick.volume = 0.55;
@@ -90,16 +94,14 @@ function showScreen(name) {
 }
 
 function startMenuMusic() {
-  audio.match.pause();
   audio.crowd.pause();
   audio.menu.play().catch(() => {});
 }
 
 function startMatchMusic() {
+  // Durante el partido solo suena la afición; no se reproduce champions.mp3.
   audio.menu.pause();
-  audio.match.currentTime = 0;
   audio.crowd.currentTime = 0;
-  audio.match.play().catch(() => {});
   audio.crowd.play().catch(() => {});
 }
 
@@ -225,10 +227,10 @@ function placeTeams() {
   const left = matchTeams[0];
   const right = matchTeams[1];
 
-  left.goalkeeper.x = 18;
-  left.player.x = 185;
-  right.player.x = WIDTH - 185 - right.player.width;
-  right.goalkeeper.x = WIDTH - 18 - right.goalkeeper.width;
+  left.goalkeeper.x = FIELD.left + 8;
+  left.player.x = FIELD.left + 115;
+  right.player.x = FIELD.right - 115 - right.player.width;
+  right.goalkeeper.x = FIELD.right - 8 - right.goalkeeper.width;
 
   [left, right].forEach(team => {
     team.goalkeeper.teamIndex = team.index;
@@ -351,13 +353,13 @@ function moveCharacter(character, team, dt) {
   }
 
   if (character.role === "goalkeeper") {
-    character.x = side === 0 ? 18 : WIDTH - 18 - character.width;
+    character.x = side === 0 ? FIELD.left + 8 : FIELD.right - 8 - character.width;
   } else {
-    const minX = side === 0 ? 105 : WIDTH * 0.52;
-    const maxX = side === 0 ? WIDTH * 0.46 - character.width : WIDTH - 105 - character.width;
+    const minX = side === 0 ? FIELD.left + 55 : WIDTH * 0.52;
+    const maxX = side === 0 ? WIDTH * 0.46 - character.width : FIELD.right - 55 - character.width;
     character.x = Math.max(minX, Math.min(maxX, character.x));
   }
-  character.y = Math.max(12, Math.min(HEIGHT - character.height - 12, character.y));
+  character.y = Math.max(FIELD.top, Math.min(FIELD.bottom - character.height, character.y));
 }
 
 function getHitBox(character) {
@@ -394,12 +396,38 @@ function collideWithCharacter(character, team) {
   return true;
 }
 
+function circleIntersectsRect(circle, rect) {
+  const nearestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
+  const nearestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
+  const dx = circle.x - nearestX;
+  const dy = circle.y - nearestY;
+  return dx * dx + dy * dy <= circle.radius * circle.radius;
+}
+
+function getGoalHitboxes() {
+  return {
+    left: {
+      x: FIELD.left - GOAL.depth,
+      y: GOAL.top,
+      width: GOAL.depth,
+      height: GOAL.bottom - GOAL.top
+    },
+    right: {
+      x: FIELD.right,
+      y: GOAL.top,
+      width: GOAL.depth,
+      height: GOAL.bottom - GOAL.top
+    }
+  };
+}
+
 function updateBall(dt) {
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
 
-  if (ball.y - ball.radius <= 0 || ball.y + ball.radius >= HEIGHT) {
-    ball.y = Math.max(ball.radius, Math.min(HEIGHT - ball.radius, ball.y));
+  // Límites superior e inferior del terreno de juego.
+  if (ball.y - ball.radius <= FIELD.top || ball.y + ball.radius >= FIELD.bottom) {
+    ball.y = Math.max(FIELD.top + ball.radius, Math.min(FIELD.bottom - ball.radius, ball.y));
     ball.vy *= -1;
   }
 
@@ -410,8 +438,25 @@ function updateBall(dt) {
     }
   }
 
-  if (ball.x < -ball.radius) registerGoal(1);
-  if (ball.x > WIDTH + ball.radius) registerGoal(0);
+  // Solo se marca gol al entrar en el rectángulo de la portería.
+  const goals = getGoalHitboxes();
+  if (ball.vx < 0 && circleIntersectsRect(ball, goals.left)) {
+    registerGoal(1);
+    return;
+  }
+  if (ball.vx > 0 && circleIntersectsRect(ball, goals.right)) {
+    registerGoal(0);
+    return;
+  }
+
+  // Si no entra en la portería, los laterales son paredes y la pelota rebota.
+  if (ball.x - ball.radius <= FIELD.left) {
+    ball.x = FIELD.left + ball.radius;
+    ball.vx = Math.abs(ball.vx);
+  } else if (ball.x + ball.radius >= FIELD.right) {
+    ball.x = FIELD.right - ball.radius;
+    ball.vx = -Math.abs(ball.vx);
+  }
 }
 
 function registerGoal(scoringTeam) {
@@ -527,6 +572,27 @@ function drawBall() {
   }
 }
 
+function drawDebugHitboxes() {
+  const goals = getGoalHitboxes();
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#00e5ff";
+  ctx.setLineDash([7, 5]);
+  ctx.strokeRect(FIELD.left, FIELD.top, FIELD.right - FIELD.left, FIELD.bottom - FIELD.top);
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(0, 220, 90, 0.28)";
+  ctx.fillRect(goals.left.x, goals.left.y, goals.left.width, goals.left.height);
+  ctx.fillRect(goals.right.x, goals.right.y, goals.right.width, goals.right.height);
+  ctx.strokeStyle = "#00dc5a";
+  ctx.strokeRect(goals.left.x, goals.left.y, goals.left.width, goals.left.height);
+  ctx.strokeRect(goals.right.x, goals.right.y, goals.right.width, goals.right.height);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px monospace";
+  ctx.fillText(`Puntero: x=${Math.round(pointerPosition.x)} y=${Math.round(pointerPosition.y)}`, 12, 22);
+  ctx.fillText("F3: ocultar/mostrar límites · Cian: campo · Verde: hitboxes de portería", 12, 42);
+  ctx.restore();
+}
+
 function drawGame() {
   if (stageImage.complete && stageImage.naturalWidth) {
     ctx.drawImage(stageImage, 0, 0, WIDTH, HEIGHT);
@@ -540,6 +606,7 @@ function drawGame() {
     drawCharacter(team.player);
   });
   drawBall();
+  if (debugHitboxes) drawDebugHitboxes();
 }
 
 function gameLoop(timestamp) {
@@ -593,7 +660,19 @@ document.getElementById("startMatch").addEventListener("click", beginMatch);
 document.getElementById("quitMatch").addEventListener("click", returnToMenu);
 document.getElementById("overlayButton").addEventListener("click", () => {});
 
+canvas.addEventListener("pointermove", event => {
+  const rect = canvas.getBoundingClientRect();
+  pointerPosition = {
+    x: (event.clientX - rect.left) * (canvas.width / rect.width),
+    y: (event.clientY - rect.top) * (canvas.height / rect.height)
+  };
+});
+
 document.addEventListener("keydown", event => {
+  if (event.key === "F3") {
+    event.preventDefault();
+    debugHitboxes = !debugHitboxes;
+  }
   const key = event.key.toLowerCase();
   if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(key)) event.preventDefault();
   keys[key] = true;
