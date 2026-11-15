@@ -9,7 +9,8 @@ const TOTAL_SECONDS = HALF_SECONDS * 2;
 const SPRITE_COLUMNS = 5;
 const SPRITE_ROWS = 3;
 
-const CLUBS_INDEX = "images/clubs/clubs.json";
+const PROJECT_BASE = new URL("./", document.baseURI);
+const CLUBS_INDEX = new URL("images/clubs/clubs.json", PROJECT_BASE);
 
 const ASSET = {
   stage: "images/stages/stadium.png",
@@ -108,8 +109,8 @@ async function loadClubs() {
   startButton.disabled = true;
   hint.textContent = "Cargando clubes...";
 
-  const indexResponse = await fetch(CLUBS_INDEX, { cache: "no-store" });
-  if (!indexResponse.ok) throw new Error("No se pudo leer images/clubs/clubs.json.");
+  const indexResponse = await fetch(CLUBS_INDEX.href, { cache: "no-store" });
+  if (!indexResponse.ok) throw new Error(`No se pudo leer clubs.json (HTTP ${indexResponse.status}). Comprueba que ejecutas el juego desde un servidor web y no abriendo index.html como archivo.`);
 
   const indexData = await indexResponse.json();
   const folders = Array.isArray(indexData) ? indexData : indexData.clubs;
@@ -121,8 +122,9 @@ async function loadClubs() {
     const folder = typeof entry === "string" ? entry : entry.folder;
     if (!folder) throw new Error("Hay una carpeta sin nombre en el índice.");
 
-    const response = await fetch(`images/clubs/${encodeURIComponent(folder)}/config.json`, { cache: "no-store" });
-    if (!response.ok) throw new Error(`No se pudo cargar config.json de ${folder}.`);
+    const configUrl = new URL(`images/clubs/${encodeURIComponent(folder)}/config.json`, PROJECT_BASE);
+    const response = await fetch(configUrl.href, { cache: "no-store" });
+    if (!response.ok) throw new Error(`No se pudo cargar ${folder}/config.json (HTTP ${response.status}).`);
 
     const config = await response.json();
     if (!config.club_name || !config.club_shield || !config.player || !config.goalkeeper) {
@@ -134,13 +136,13 @@ async function loadClubs() {
   clubs = results.filter(result => result.status === "fulfilled").map(result => result.value);
   const failed = results.filter(result => result.status === "rejected");
 
-  if (clubs.length === 0) throw new Error("No se pudo cargar ningún club. Comprueba clubs.json y los config.json.");
+  if (clubs.length === 0) throw new Error("No se pudo cargar ningún club. Revisa la consola del navegador (F12) para ver el error concreto.");
 
   populateClubSelectors();
   startButton.disabled = false;
   hint.textContent = failed.length
-    ? `Se cargaron ${clubs.length} clubes; algunos no pudieron cargarse.`
-    : "Jugador 1: W A S D · CPU: control automático";
+    ? `Se cargaron ${clubs.length} de ${folders.length} clubes. Fallaron: ${failed.map(item => item.reason.message).join(" | ")}`
+    : `Se cargaron ${clubs.length} clubes correctamente. Jugador 1: W A S D · CPU: control automático`;
   if (failed.length) console.warn("Clubes que no se pudieron cargar:", failed.map(item => item.reason));
 }
 
@@ -170,11 +172,12 @@ function renderClubCard(containerId, club) {
   container.innerHTML = "";
 
   const shield = document.createElement("img");
-  shield.src = club.club_shield;
+  shield.src = new URL(club.club_shield, PROJECT_BASE).href;
   shield.alt = `Escudo de ${club.club_name}`;
   shield.onerror = () => {
-    shield.alt = `No se pudo cargar el escudo de ${club.club_name}`;
+    shield.alt = `Escudo no disponible: ${club.club_name}`;
     shield.classList.add("shield-error");
+    console.error(`No se pudo cargar el escudo de ${club.club_name}:`, shield.src);
   };
 
   const name = document.createElement("strong");
