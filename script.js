@@ -1,280 +1,558 @@
-
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const paddleWidth = 12;
-const paddleHeight = 90;
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+const WIN_SCORE = 10;
+const HALF_SECONDS = 150;
+const TOTAL_SECONDS = HALF_SECONDS * 2;
+const SPRITE_COLUMNS = 5;
+const SPRITE_ROWS = 3;
 
-const MAX_SCORE = 10;
-const INITIAL_SPEED = 5;
-const SPEED_INCREASE = 0.5;
-const MAX_SPEED = 12;
+const CLUB_FOLDERS = [
+  "BayernMunich",
+  "FCBarcelona",
+  "ParisSaintGermain",
+  "RealMadrid"
+];
 
-let playerScore = 0;
-let opponentScore = 0;
-let gameOver = false;
-
-const player = {
-    x: 20,
-    y: 180,
-    speed: 7
+const ASSET = {
+  stage: "images/stages/stadium.png",
+  ball: "images/items/ball.png",
+  menuMusic: "audio/music/main_menu.mp3",
+  matchMusic: "audio/music/champions.mp3",
+  goal: "audio/sounds/GOAL.mp3",
+  missed: "audio/sounds/MISSED.mp3",
+  kick: "audio/sounds/kick.mp3",
+  crowd: "audio/sounds/afition.mp3"
 };
 
-const opponent = {
-    x: 768,
-    y: 180,
-    speed: 4
+const screens = {
+  intro: document.getElementById("introScreen"),
+  menu: document.getElementById("mainMenu"),
+  clubs: document.getElementById("clubScreen"),
+  game: document.getElementById("gameScreen")
 };
 
-const ball = {
-    x: 400,
-    y: 225,
-    radius: 9,
-    speedX: INITIAL_SPEED,
-    speedY: 3
+const imageCache = new Map();
+const audio = {
+  menu: new Audio(ASSET.menuMusic),
+  match: new Audio(ASSET.matchMusic),
+  goal: new Audio(ASSET.goal),
+  missed: new Audio(ASSET.missed),
+  kick: new Audio(ASSET.kick),
+  crowd: new Audio(ASSET.crowd)
 };
+audio.menu.loop = true;
+audio.match.loop = true;
+audio.crowd.loop = true;
+audio.menu.volume = 0.45;
+audio.match.volume = 0.38;
+audio.crowd.volume = 0.28;
+audio.goal.volume = 0.8;
+audio.kick.volume = 0.55;
+audio.missed.volume = 0.5;
 
+let clubs = [];
+let gameMode = "cpu";
+let selectedTeams = [];
+let matchTeams = [];
+let score = [0, 0];
+let remainingTime = TOTAL_SECONDS;
+let currentHalf = 1;
+let matchState = "stopped";
 let keys = {};
+let lastFrame = 0;
+let animationFrame = 0;
+let ballFrame = 0;
+let ballFrameTimer = 0;
+let lastScoringTeam = null;
 
-document.addEventListener("keydown", (e) => {
-    keys[e.key] = true;
+const stageImage = loadImage(ASSET.stage);
+const ballImage = loadImage(ASSET.ball);
 
-    if (["ArrowUp", "ArrowDown"].includes(e.key)) {
-        e.preventDefault();
+function loadImage(src) {
+  if (!imageCache.has(src)) {
+    const img = new Image();
+    img.src = src;
+    imageCache.set(src, img);
+  }
+  return imageCache.get(src);
+}
+
+function playSound(name) {
+  const sound = audio[name];
+  if (!sound) return;
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
+}
+
+function showScreen(name) {
+  Object.entries(screens).forEach(([key, element]) => {
+    element.classList.toggle("hidden", key !== name);
+  });
+}
+
+function startMenuMusic() {
+  audio.match.pause();
+  audio.crowd.pause();
+  audio.menu.play().catch(() => {});
+}
+
+function startMatchMusic() {
+  audio.menu.pause();
+  audio.match.currentTime = 0;
+  audio.crowd.currentTime = 0;
+  audio.match.play().catch(() => {});
+  audio.crowd.play().catch(() => {});
+}
+
+async function loadClubs() {
+  const loaded = await Promise.all(CLUB_FOLDERS.map(async folder => {
+    const response = await fetch(`images/clubs/${folder}/config.json`);
+    if (!response.ok) throw new Error(`No se pudo cargar el club ${folder}`);
+    const config = await response.json();
+    return { ...config, folder };
+  }));
+  clubs = loaded;
+  populateClubSelectors();
+}
+
+function populateClubSelectors() {
+  const selects = [
+    document.getElementById("teamOneSelect"),
+    document.getElementById("teamTwoSelect")
+  ];
+
+  selects.forEach(select => {
+    select.innerHTML = "";
+    clubs.forEach((club, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = club.club_name;
+      select.appendChild(option);
+    });
+  });
+
+  selects[0].value = "0";
+  selects[1].value = String(Math.min(1, clubs.length - 1));
+  updateClubCards();
+}
+
+function renderClubCard(containerId, club) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  const shield = document.createElement("img");
+  shield.src = club.club_shield;
+  shield.alt = `Escudo de ${club.club_name}`;
+  const name = document.createElement("strong");
+  name.textContent = club.club_name;
+  container.append(shield, name);
+}
+
+function updateClubCards() {
+  const first = clubs[Number(document.getElementById("teamOneSelect").value)];
+  const second = clubs[Number(document.getElementById("teamTwoSelect").value)];
+  if (first) renderClubCard("teamOneCard", first);
+  if (second) renderClubCard("teamTwoCard", second);
+}
+
+function makeCharacter(club, role, teamIndex) {
+  const data = club[role];
+  return {
+    name: data.name,
+    image: loadImage(data.image),
+    speedStat: data.stats.speed,
+    kickStat: data.stats.kick,
+    role,
+    teamIndex,
+    x: 0,
+    y: HEIGHT / 2,
+    width: role === "goalkeeper" ? 88 : 100,
+    height: role === "goalkeeper" ? 105 : 115,
+    hitWidth: role === "goalkeeper" ? 48 : 54,
+    hitHeight: role === "goalkeeper" ? 76 : 82,
+    direction: teamIndex === 0 ? 1 : -1
+  };
+}
+
+function createTeam(club, index) {
+  return {
+    club,
+    index,
+    score: 0,
+    goalkeeper: makeCharacter(club, "goalkeeper", index),
+    player: makeCharacter(club, "player", index)
+  };
+}
+
+function placeTeams() {
+  const left = matchTeams[0];
+  const right = matchTeams[1];
+
+  left.goalkeeper.x = 18;
+  left.player.x = 155;
+  right.player.x = WIDTH - 155 - right.player.width;
+  right.goalkeeper.x = WIDTH - 18 - right.goalkeeper.width;
+
+  [left, right].forEach(team => {
+    team.goalkeeper.y = HEIGHT / 2 - team.goalkeeper.height / 2;
+    team.player.y = HEIGHT / 2 - team.player.height / 2;
+  });
+}
+
+function resetBall(direction = Math.random() < 0.5 ? -1 : 1) {
+  ball.x = WIDTH / 2;
+  ball.y = HEIGHT / 2;
+  ball.radius = 13;
+  ball.vx = direction * 5.2;
+  ball.vy = (Math.random() * 2 - 1) * 2.8;
+  ball.lastHit = null;
+}
+
+let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 13, vx: 5.2, vy: 2, lastHit: null };
+
+function beginMatch() {
+  const firstIndex = Number(document.getElementById("teamOneSelect").value);
+  const secondIndex = Number(document.getElementById("teamTwoSelect").value);
+  selectedTeams = [clubs[firstIndex], clubs[secondIndex]];
+  matchTeams = selectedTeams.map((club, index) => createTeam(club, index));
+  score = [0, 0];
+  remainingTime = TOTAL_SECONDS;
+  currentHalf = 1;
+  matchState = "playing";
+  keys = {};
+  placeTeams();
+  resetBall(Math.random() < 0.5 ? -1 : 1);
+  updateHud();
+  updateControlsText();
+  document.getElementById("matchOverlay").classList.add("hidden");
+  showScreen("game");
+  startMatchMusic();
+  lastFrame = performance.now();
+  cancelAnimationFrame(animationFrame);
+  animationFrame = requestAnimationFrame(gameLoop);
+}
+
+function updateHud() {
+  const left = matchTeams[0];
+  const right = matchTeams[1];
+  if (!left || !right) return;
+  document.getElementById("leftShield").src = left.club.club_shield;
+  document.getElementById("rightShield").src = right.club.club_shield;
+  document.getElementById("leftClubName").textContent = left.club.club_acronym;
+  document.getElementById("rightClubName").textContent = right.club.club_acronym;
+  document.getElementById("leftScore").textContent = score[0];
+  document.getElementById("rightScore").textContent = score[1];
+  document.getElementById("halfLabel").textContent = currentHalf === 1 ? "1.ª PARTE" : "2.ª PARTE";
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const minutes = Math.floor(remainingTime / 60);
+  const seconds = Math.floor(remainingTime % 60);
+  document.getElementById("matchTimer").textContent =
+    `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateControlsText() {
+  document.getElementById("controlsText").textContent = gameMode === "cpu"
+    ? "Jugador 1: W A S D · CPU: control automático"
+    : "Jugador 1: W A S D · Jugador 2: FLECHAS";
+}
+
+function getSide(team) {
+  return team.index;
+}
+
+function moveCharacter(character, team, dt) {
+  const side = getSide(team);
+  const isHuman = side === 0 || gameMode === "pvp";
+  const keysForTeam = side === 0
+    ? { up: "w", down: "s", left: "a", right: "d" }
+    : { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
+
+  let dx = 0;
+  let dy = 0;
+  const movementSpeed = (2.5 + character.speedStat * 0.78) * dt;
+
+  if (isHuman) {
+    if (keys[keysForTeam.up]) dy -= 1;
+    if (keys[keysForTeam.down]) dy += 1;
+    if (character.role === "player") {
+      if (keys[keysForTeam.left]) dx -= 1;
+      if (keys[keysForTeam.right]) dx += 1;
     }
-});
+  } else {
+    const targetY = ball.y - character.height / 2;
+    const difference = targetY - character.y;
+    const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? 0.95 : 0.78);
+    if (Math.abs(difference) > 4) dy = Math.sign(difference);
+    if (character.role === "player") {
+      const homeX = WIDTH - 155 - character.width;
+      const targetX = Math.max(WIDTH * 0.55, Math.min(WIDTH * 0.82, ball.x + 85));
+      character.x += Math.sign(targetX - character.x) * Math.min(Math.abs(targetX - character.x), cpuSpeed * 0.65);
+    }
+    character.y += dy * cpuSpeed;
+  }
 
-document.addEventListener("keyup", (e) => {
-    keys[e.key] = false;
-});
+  if (isHuman) {
+    const length = Math.hypot(dx, dy) || 1;
+    character.x += (dx / length) * movementSpeed;
+    character.y += (dy / length) * movementSpeed;
+  }
 
-function drawPaddle(x, y) {
-    ctx.fillStyle = "white";
-    ctx.fillRect(x, y, paddleWidth, paddleHeight);
+  if (character.role === "goalkeeper") {
+    character.x = side === 0 ? 18 : WIDTH - 18 - character.width;
+  } else {
+    const minX = side === 0 ? 105 : WIDTH * 0.52;
+    const maxX = side === 0 ? WIDTH * 0.46 - character.width : WIDTH - 105 - character.width;
+    character.x = Math.max(minX, Math.min(maxX, character.x));
+  }
+  character.y = Math.max(12, Math.min(HEIGHT - character.height - 12, character.y));
+}
+
+function getHitBox(character) {
+  return {
+    x: character.x + (character.width - character.hitWidth) / 2,
+    y: character.y + (character.height - character.hitHeight) / 2,
+    width: character.hitWidth,
+    height: character.hitHeight
+  };
+}
+
+function collideWithCharacter(character, team) {
+  const box = getHitBox(character);
+  const nearestX = Math.max(box.x, Math.min(ball.x, box.x + box.width));
+  const nearestY = Math.max(box.y, Math.min(ball.y, box.y + box.height));
+  const dx = ball.x - nearestX;
+  const dy = ball.y - nearestY;
+
+  if (dx * dx + dy * dy > ball.radius * ball.radius) return false;
+  if ((team.index === 0 && ball.vx >= 0) || (team.index === 1 && ball.vx <= 0)) return false;
+
+  const centerY = box.y + box.height / 2;
+  const impact = Math.max(-1, Math.min(1, (ball.y - centerY) / (box.height / 2)));
+  const force = 5 + character.kickStat * 0.42;
+  const direction = team.index === 0 ? 1 : -1;
+
+  ball.x = team.index === 0
+    ? box.x + box.width + ball.radius + 1
+    : box.x - ball.radius - 1;
+  ball.vx = direction * Math.min(12, force);
+  ball.vy = impact * 5.8 + (Math.random() - 0.5) * 0.7;
+  ball.lastHit = team.index;
+  playSound("kick");
+  return true;
+}
+
+function updateBall(dt) {
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+
+  if (ball.y - ball.radius <= 0 || ball.y + ball.radius >= HEIGHT) {
+    ball.y = Math.max(ball.radius, Math.min(HEIGHT - ball.radius, ball.y));
+    ball.vy *= -1;
+  }
+
+  for (const team of matchTeams) {
+    const defenders = [team.goalkeeper, team.player];
+    for (const character of defenders) {
+      if (collideWithCharacter(character, team)) break;
+    }
+  }
+
+  if (ball.x < -ball.radius) registerGoal(1);
+  if (ball.x > WIDTH + ball.radius) registerGoal(0);
+}
+
+function registerGoal(scoringTeam) {
+  if (matchState !== "playing") return;
+  score[scoringTeam] += 1;
+  lastScoringTeam = scoringTeam;
+  updateHud();
+  playSound("goal");
+
+  if (score[scoringTeam] >= WIN_SCORE) {
+    finishMatch(scoringTeam, "¡VICTORIA!");
+    return;
+  }
+  resetBall(scoringTeam === 0 ? 1 : -1);
+}
+
+function updateMatch(dt) {
+  if (matchState !== "playing") return;
+
+  remainingTime = Math.max(0, remainingTime - dt / 60);
+  updateTimerDisplay();
+
+  matchTeams.forEach(team => {
+    moveCharacter(team.goalkeeper, team, dt);
+    moveCharacter(team.player, team, dt);
+  });
+  updateBall(dt);
+
+  if (remainingTime <= 0) {
+    if (currentHalf === 1) {
+      beginSecondHalf();
+    } else if (score[0] === score[1]) {
+      finishMatch(null, "¡EMPATE!");
+    } else {
+      finishMatch(score[0] > score[1] ? 0 : 1, "¡PARTIDO FINALIZADO!");
+    }
+  }
+}
+
+function beginSecondHalf() {
+  currentHalf = 2;
+  remainingTime = HALF_SECONDS;
+  matchTeams.reverse();
+  matchTeams.forEach((team, index) => { team.index = index; });
+  placeTeams();
+  resetBall(Math.random() < 0.5 ? -1 : 1);
+  updateHud();
+  showMatchOverlay("DESCANSO", "Cambio de campo. ¡Comienza la segunda parte!", "EMPEZAR 2.ª PARTE", () => {
+    matchState = "playing";
+    lastFrame = performance.now();
+  });
+  matchState = "halftime";
+}
+
+function showMatchOverlay(title, message, buttonText, callback) {
+  document.getElementById("overlayTitle").textContent = title;
+  document.getElementById("overlayText").textContent = message;
+  const button = document.getElementById("overlayButton");
+  button.textContent = buttonText;
+  button.onclick = callback;
+  document.getElementById("matchOverlay").classList.remove("hidden");
+}
+
+function finishMatch(winnerIndex, title) {
+  matchState = "finished";
+  audio.match.pause();
+  audio.crowd.pause();
+  const message = winnerIndex === null
+    ? `Empate ${score[0]} - ${score[1]}`
+    : `${matchTeams[winnerIndex].club.club_name} gana ${score[0]} - ${score[1]}`;
+  showMatchOverlay(title, message, "VOLVER AL MENÚ", () => {
+    matchState = "stopped";
+    showScreen("menu");
+    startMenuMusic();
+  });
+}
+
+function drawCharacter(character) {
+  const img = character.image;
+  if (!img || !img.complete || !img.naturalWidth) return;
+
+  const frameWidth = img.naturalWidth / SPRITE_COLUMNS;
+  const frameHeight = img.naturalHeight / SPRITE_ROWS;
+  const drawX = character.x;
+  const drawY = character.y;
+
+  ctx.save();
+  if (character.teamIndex === 1) {
+    ctx.translate(drawX + character.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, 0, frameWidth, frameHeight, 0, drawY, character.width, character.height);
+  } else {
+    ctx.drawImage(img, 0, 0, frameWidth, frameHeight, drawX, drawY, character.width, character.height);
+  }
+  ctx.restore();
 }
 
 function drawBall() {
+  if (ballImage.complete && ballImage.naturalWidth) {
+    const frameWidth = ballImage.naturalWidth / 5;
+    const frameHeight = ballImage.naturalHeight;
+    ctx.drawImage(
+      ballImage,
+      ballFrame * frameWidth, 0, frameWidth, frameHeight,
+      ball.x - 17, ball.y - 17, 34, 34
+    );
+  } else {
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = "#00ff99";
+    ctx.fillStyle = "#fff";
     ctx.fill();
-    ctx.closePath();
+  }
 }
 
-function drawCenterLine() {
-    ctx.setLineDash([10, 10]);
-    ctx.strokeStyle = "#555";
-    ctx.beginPath();
-    ctx.moveTo(400, 0);
-    ctx.lineTo(400, 450);
-    ctx.stroke();
-    ctx.setLineDash([]);
+function drawGame() {
+  if (stageImage.complete && stageImage.naturalWidth) {
+    ctx.drawImage(stageImage, 0, 0, WIDTH, HEIGHT);
+  } else {
+    ctx.fillStyle = "#18743a";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
+
+  matchTeams.forEach(team => {
+    drawCharacter(team.goalkeeper);
+    drawCharacter(team.player);
+  });
+  drawBall();
 }
 
-function update() {
-    if (gameOver) return;
+function gameLoop(timestamp) {
+  if (matchState === "stopped" || matchState === "finished") return;
+  const dt = Math.min((timestamp - lastFrame) / (1000 / 60) || 1, 2);
+  lastFrame = timestamp;
 
-    // Moviment del jugador
-    if (keys["ArrowUp"]) {
-        player.y -= player.speed;
+  if (matchState === "playing") {
+    updateMatch(dt);
+    ballFrameTimer += dt;
+    if (ballFrameTimer >= 7) {
+      ballFrame = (ballFrame + 1) % 5;
+      ballFrameTimer = 0;
     }
+  }
 
-    if (keys["ArrowDown"]) {
-        player.y += player.speed;
-    }
-
-    player.y = Math.max(
-        0,
-        Math.min(canvas.height - paddleHeight, player.y)
-    );
-
-    // Moviment de la CPU
-    let target = ball.y - paddleHeight / 2;
-
-    if (opponent.y < target) {
-        opponent.y += opponent.speed;
-    } else if (opponent.y > target) {
-        opponent.y -= opponent.speed;
-    }
-
-    opponent.y = Math.max(
-        0,
-        Math.min(canvas.height - paddleHeight, opponent.y)
-    );
-
-    // Moviment de la pilota
-    ball.x += ball.speedX;
-    ball.y += ball.speedY;
-
-    // Rebot contra les parets
-    if (
-        ball.y - ball.radius <= 0 ||
-        ball.y + ball.radius >= canvas.height
-    ) {
-        ball.speedY *= -1;
-    }
-
-    // Col·lisió amb el jugador
-    if (
-        ball.speedX < 0 &&
-        ball.x - ball.radius <= player.x + paddleWidth &&
-        ball.x + ball.radius >= player.x &&
-        ball.y + ball.radius >= player.y &&
-        ball.y - ball.radius <= player.y + paddleHeight
-    ) {
-        ball.x = player.x + paddleWidth + ball.radius;
-
-        ball.speedX = Math.abs(ball.speedX);
-        ball.speedY += (
-            ball.y - (player.y + paddleHeight / 2)
-        ) * 0.08;
-
-        increaseBallSpeed();
-    }
-
-    // Col·lisió amb la CPU
-    if (
-        ball.speedX > 0 &&
-        ball.x + ball.radius >= opponent.x &&
-        ball.x - ball.radius <= opponent.x + paddleWidth &&
-        ball.y + ball.radius >= opponent.y &&
-        ball.y - ball.radius <= opponent.y + paddleHeight
-    ) {
-        ball.x = opponent.x - ball.radius;
-
-        ball.speedX = -Math.abs(ball.speedX);
-        ball.speedY += (
-            ball.y - (opponent.y + paddleHeight / 2)
-        ) * 0.08;
-
-        increaseBallSpeed();
-    }
-
-    // Punt per a la CPU
-    if (ball.x < 0) {
-        opponentScore++;
-        updateScore();
-        checkWinner();
-
-        if (!gameOver) resetBall();
-    }
-
-    // Punt per al jugador
-    if (ball.x > canvas.width) {
-        playerScore++;
-        updateScore();
-        checkWinner();
-
-        if (!gameOver) resetBall();
-    }
+  drawGame();
+  animationFrame = requestAnimationFrame(gameLoop);
 }
 
-// Augmentar la velocitat progressivament
-function increaseBallSpeed() {
-    let direction = Math.sign(ball.speedX);
-
-    let currentSpeed = Math.sqrt(
-        ball.speedX * ball.speedX +
-        ball.speedY * ball.speedY
-    );
-
-    let newSpeed = Math.min(
-        currentSpeed + SPEED_INCREASE,
-        MAX_SPEED
-    );
-
-    let angle = Math.atan2(ball.speedY, ball.speedX);
-
-    ball.speedX = Math.cos(angle) * newSpeed;
-    ball.speedY = Math.sin(angle) * newSpeed;
-
-    // Assegurar que continua avançant cap a l'altre costat
-    ball.speedX = direction * Math.abs(ball.speedX);
+function returnToMenu() {
+  matchState = "stopped";
+  cancelAnimationFrame(animationFrame);
+  audio.match.pause();
+  audio.crowd.pause();
+  showScreen("menu");
+  startMenuMusic();
 }
 
-function updateScore() {
-    document.getElementById("playerScore").textContent = playerScore;
-    document.getElementById("opponentScore").textContent = opponentScore;
-}
+document.getElementById("introStart").addEventListener("click", () => {
+  showScreen("menu");
+  startMenuMusic();
+});
+document.getElementById("friendlyMode").addEventListener("click", () => {
+  gameMode = "cpu";
+  document.getElementById("teamTwoLabel").textContent = "CPU";
+  document.getElementById("selectionHint").textContent = "Jugador 1: W A S D · CPU: control automático";
+  showScreen("clubs");
+});
+document.getElementById("teamOneSelect").addEventListener("change", updateClubCards);
+document.getElementById("teamTwoSelect").addEventListener("change", updateClubCards);
+document.getElementById("backToMenu").addEventListener("click", () => showScreen("menu"));
+document.getElementById("startMatch").addEventListener("click", beginMatch);
+document.getElementById("quitMatch").addEventListener("click", returnToMenu);
+document.getElementById("overlayButton").addEventListener("click", () => {});
 
-// Comprovar qui ha guanyat
-function checkWinner() {
-    if (playerScore >= MAX_SCORE) {
-        endGame("HAS GUANYAT!", "victory");
-    } else if (opponentScore >= MAX_SCORE) {
-        endGame("HAS PERDUT!", "defeat");
-    }
-}
+document.addEventListener("keydown", event => {
+  const key = event.key.toLowerCase();
+  if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(key)) event.preventDefault();
+  keys[key] = true;
+  if (key === "enter" && !screens.intro.classList.contains("hidden")) {
+    showScreen("menu");
+    startMenuMusic();
+  }
+});
+document.addEventListener("keyup", event => {
+  keys[event.key.toLowerCase()] = false;
+});
 
-function endGame(message, result) {
-    gameOver = true;
+loadClubs().catch(error => {
+  console.error(error);
+  document.getElementById("selectionHint").textContent = "No se pudieron cargar los clubes. Comprueba los archivos config.json.";
+});
 
-    const endScreen = document.getElementById("endScreen");
-    const endMessage = document.getElementById("endMessage");
-    const finalScore = document.getElementById("finalScore");
-
-    endMessage.textContent = message;
-    endMessage.style.color =
-        result === "victory" ? "#00ff99" : "#ff4444";
-
-    finalScore.textContent =
-        `Resultat final: ${playerScore} - ${opponentScore}`;
-
-    endScreen.classList.remove("hidden");
-}
-
-// Reiniciar pilota després d'un punt
-function resetBall() {
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
-
-    ball.speedX = Math.random() > 0.5
-        ? INITIAL_SPEED
-        : -INITIAL_SPEED;
-
-    ball.speedY = (Math.random() - 0.5) * 6;
-}
-
-// Dibuixar el joc
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    drawCenterLine();
-    drawPaddle(player.x, player.y);
-    drawPaddle(opponent.x, opponent.y);
-    drawBall();
-}
-
-// Bucle principal
-function gameLoop() {
-    update();
-    draw();
-
-    requestAnimationFrame(gameLoop);
-}
-
-// Reiniciar tota la partida
-function restartGame() {
-    playerScore = 0;
-    opponentScore = 0;
-    gameOver = false;
-
-    player.y = 180;
-    opponent.y = 180;
-
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
-
-    ball.speedX = INITIAL_SPEED;
-    ball.speedY = 3;
-
-    keys = {};
-
-    updateScore();
-
-    document.getElementById("endScreen").classList.add("hidden");
-}
-
-gameLoop();
-
-  
+showScreen("intro");
