@@ -1,0 +1,36 @@
+
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joc Pong</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>JOC PONG</h1>
+
+    <h2>
+        Jugador: <span id="playerScore">0</span>
+        -
+        <span id="opponentScore">0</span> : CPU
+    </h2>
+
+    <div class="game-container">
+        <canvas id="game" width="800" height="450"></canvas>
+
+        <div id="endScreen" class="end-screen hidden">
+            <h2 id="endMessage"></h2>
+            <p id="finalScore"></p>
+            <button onclick="restartGame()">Tornar a jugar</button>
+        </div>
+    </div>
+
+    <p>Utilitza les fletxes ↑ i ↓ per moure la raqueta.</p>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+  

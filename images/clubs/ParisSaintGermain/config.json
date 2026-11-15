@@ -1,0 +1,22 @@
+{
+    "club_name": "Paris Saint Germain",
+    "club_acronym": "PSG",
+    "hud_color": ["#000051", "#000051"],
+    "club_shield": "images/club/ParisSaintGermain/shield.png",
+    "player": {
+        "name": "Ousmane Dembelé",
+        "image": "images/club/RealMadrid/player.png",
+        "stats": {
+            "speed": 6,
+            "kick": 10
+        }
+    },
+    "goalkeeper": {
+        "name": "Lucas Chevalier",
+        "image": "images/club/RealMadrid/goalkeeper.png",
+        "stats": {
+            "speed": 7,
+            "kick": 8
+        }
+    }
+}
