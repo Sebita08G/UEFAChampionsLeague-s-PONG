@@ -9,12 +9,7 @@ const TOTAL_SECONDS = HALF_SECONDS * 2;
 const SPRITE_COLUMNS = 5;
 const SPRITE_ROWS = 3;
 
-const CLUB_FOLDERS = [
-  "BayernMunich",
-  "FCBarcelona",
-  "ParisSaintGermain",
-  "RealMadrid"
-];
+const CLUBS_INDEX = "images/clubs/clubs.json";
 
 const ASSET = {
   stage: "images/stages/stadium.png",
@@ -108,14 +103,45 @@ function startMatchMusic() {
 }
 
 async function loadClubs() {
-  const loaded = await Promise.all(CLUB_FOLDERS.map(async folder => {
-    const response = await fetch(`images/clubs/${folder}/config.json`);
-    if (!response.ok) throw new Error(`No se pudo cargar el club ${folder}`);
+  const hint = document.getElementById("selectionHint");
+  const startButton = document.getElementById("startMatch");
+  startButton.disabled = true;
+  hint.textContent = "Cargando clubes...";
+
+  const indexResponse = await fetch(CLUBS_INDEX, { cache: "no-store" });
+  if (!indexResponse.ok) throw new Error("No se pudo leer images/clubs/clubs.json.");
+
+  const indexData = await indexResponse.json();
+  const folders = Array.isArray(indexData) ? indexData : indexData.clubs;
+  if (!Array.isArray(folders) || folders.length === 0) {
+    throw new Error("El índice no contiene carpetas de clubes.");
+  }
+
+  const results = await Promise.allSettled(folders.map(async entry => {
+    const folder = typeof entry === "string" ? entry : entry.folder;
+    if (!folder) throw new Error("Hay una carpeta sin nombre en el índice.");
+
+    const response = await fetch(`images/clubs/${encodeURIComponent(folder)}/config.json`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`No se pudo cargar config.json de ${folder}.`);
+
     const config = await response.json();
+    if (!config.club_name || !config.club_shield || !config.player || !config.goalkeeper) {
+      throw new Error(`La configuración de ${folder} está incompleta.`);
+    }
     return { ...config, folder };
   }));
-  clubs = loaded;
+
+  clubs = results.filter(result => result.status === "fulfilled").map(result => result.value);
+  const failed = results.filter(result => result.status === "rejected");
+
+  if (clubs.length === 0) throw new Error("No se pudo cargar ningún club. Comprueba clubs.json y los config.json.");
+
   populateClubSelectors();
+  startButton.disabled = false;
+  hint.textContent = failed.length
+    ? `Se cargaron ${clubs.length} clubes; algunos no pudieron cargarse.`
+    : "Jugador 1: W A S D · CPU: control automático";
+  if (failed.length) console.warn("Clubes que no se pudieron cargar:", failed.map(item => item.reason));
 }
 
 function populateClubSelectors() {
@@ -126,33 +152,39 @@ function populateClubSelectors() {
 
   selects.forEach(select => {
     select.innerHTML = "";
-    clubs.forEach((club, index) => {
+    clubs.forEach(club => {
       const option = document.createElement("option");
-      option.value = String(index);
+      option.value = club.folder;
       option.textContent = club.club_name;
       select.appendChild(option);
     });
   });
 
-  selects[0].value = "0";
-  selects[1].value = String(Math.min(1, clubs.length - 1));
+  selects[0].value = clubs[0].folder;
+  selects[1].value = (clubs[1] || clubs[0]).folder;
   updateClubCards();
 }
 
 function renderClubCard(containerId, club) {
   const container = document.getElementById(containerId);
   container.innerHTML = "";
+
   const shield = document.createElement("img");
   shield.src = club.club_shield;
   shield.alt = `Escudo de ${club.club_name}`;
+  shield.onerror = () => {
+    shield.alt = `No se pudo cargar el escudo de ${club.club_name}`;
+    shield.classList.add("shield-error");
+  };
+
   const name = document.createElement("strong");
   name.textContent = club.club_name;
   container.append(shield, name);
 }
 
 function updateClubCards() {
-  const first = clubs[Number(document.getElementById("teamOneSelect").value)];
-  const second = clubs[Number(document.getElementById("teamTwoSelect").value)];
+  const first = clubs.find(club => club.folder === document.getElementById("teamOneSelect").value);
+  const second = clubs.find(club => club.folder === document.getElementById("teamTwoSelect").value);
   if (first) renderClubCard("teamOneCard", first);
   if (second) renderClubCard("teamTwoCard", second);
 }
@@ -215,9 +247,16 @@ function resetBall(direction = Math.random() < 0.5 ? -1 : 1) {
 let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 13, vx: 5.2, vy: 2, lastHit: null };
 
 function beginMatch() {
-  const firstIndex = Number(document.getElementById("teamOneSelect").value);
-  const secondIndex = Number(document.getElementById("teamTwoSelect").value);
-  selectedTeams = [clubs[firstIndex], clubs[secondIndex]];
+  const firstFolder = document.getElementById("teamOneSelect").value;
+  const secondFolder = document.getElementById("teamTwoSelect").value;
+  selectedTeams = [
+    clubs.find(club => club.folder === firstFolder),
+    clubs.find(club => club.folder === secondFolder)
+  ];
+  if (selectedTeams.some(club => !club)) {
+    document.getElementById("selectionHint").textContent = "Selecciona dos clubes válidos antes de comenzar.";
+    return;
+  }
   matchTeams = selectedTeams.map((club, index) => {
     const team = createTeam(club, index);
     team.controlPlayer = index === 0 ? 1 : (gameMode === "pvp" ? 2 : 0);
@@ -565,8 +604,9 @@ document.addEventListener("keyup", event => {
 });
 
 loadClubs().catch(error => {
-  console.error(error);
-  document.getElementById("selectionHint").textContent = "No se pudieron cargar los clubes. Comprueba los archivos config.json.";
+  console.error("Error cargando clubes:", error);
+  document.getElementById("selectionHint").textContent = error.message;
+  document.getElementById("startMatch").disabled = true;
 });
 
 showScreen("intro");
