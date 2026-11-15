@@ -208,10 +208,10 @@ function makeCharacter(club, role, teamIndex) {
     teamIndex,
     x: 0,
     y: HEIGHT / 2,
-    width: role === "goalkeeper" ? 88 : 100,
-    height: role === "goalkeeper" ? 105 : 115,
-    hitWidth: 64,
-    hitHeight: 64,
+    width: role === "goalkeeper" ? 76 : 84,
+    height: role === "goalkeeper" ? 90 : 96,
+    hitWidth: 48,
+    hitHeight: 48,
     direction: teamIndex === 0 ? 1 : -1
   };
 }
@@ -385,15 +385,20 @@ function collideWithCharacter(character, team) {
   if ((team.index === 0 && ball.vx >= 0) || (team.index === 1 && ball.vx <= 0)) return false;
 
   const centerY = box.y + box.height / 2;
+  // -1 = golpe en la parte superior; +1 = golpe en la parte inferior.
   const impact = Math.max(-1, Math.min(1, (ball.y - centerY) / (box.height / 2)));
   const force = 5 + character.kickStat * 0.42;
   const direction = team.index === 0 ? 1 : -1;
+  const verticalInfluence = Math.abs(impact);
 
   ball.x = team.index === 0
     ? box.x + box.width + ball.radius + 1
     : box.x - ball.radius - 1;
-  ball.vx = direction * Math.min(12, force);
-  ball.vy = impact * 5.8 + (Math.random() - 0.5) * 0.7;
+
+  // En el centro sale más recta; cerca de los bordes superior/inferior
+  // gana componente vertical y reduce algo la velocidad horizontal.
+  ball.vx = direction * Math.min(12, force * (1 - verticalInfluence * 0.28));
+  ball.vy = impact * 8.2 + (Math.random() - 0.5) * 0.5;
   ball.lastHit = team.index;
   playSound("kick");
   return true;
