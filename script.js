@@ -1274,9 +1274,13 @@ function launchCompetitionMatch(leftClub, rightClub) {
 }
 function startCompetitionMatch() {
   const [leftClub, rightClub] = getCompetitionMatchClubs();
-  cpuDifficulty = tournament.round === "final"
+  const currentMatch = getCompetitionCurrentMatch();
+  cpuDifficulty = currentMatch.round === "final"
     ? (tournament.difficulty === "amateur" ? "professional" : "legend")
     : tournament.difficulty;
+  const localPlayers = [1, 2].filter(player => friendlyAssignments[player] === "local");
+  const awayPlayers = [1, 2].filter(player => friendlyAssignments[player] === "away");
+  gameMode = localPlayers.length && awayPlayers.length ? "pvp" : "cpu";
   launchCompetitionMatch(leftClub, rightClub);
 }
 function randomCompetitionScore() {
@@ -1328,12 +1332,18 @@ function simulateCurrentCompetitionMatch() {
     return;
   }
   const result = [randomCompetitionScore(), randomCompetitionScore()];
-  let winner = result[0] === result[1]
-    ? (Math.random() < 0.5 ? tournament.finalists[0] : tournament.finalists[1])
-    : tournament.finalists[result[0] > result[1] ? 0 : 1];
-  tournament.finalResult = { goals: result, winner, simulated: true };
+  let winner;
+  let extraTime = null;
+  if (result[0] === result[1]) {
+    extraTime = Math.random() < 0.5 ? [2, 1] : [1, 2];
+    winner = tournament.finalists[extraTime[0] > extraTime[1] ? 0 : 1];
+  } else {
+    winner = tournament.finalists[result[0] > result[1] ? 0 : 1];
+  }
+  tournament.finalResult = { goals: result, winner, extraTime, simulated: true };
   tournament.scheduleIndex++;
-  showTournamentBracket("FINAL SIMULADA", `Resultado: ${result[0]} - ${result[1]}. ${winner.club_name} gana la UEFA Champions League.`, "FINALIZAR", finishCompetition);
+  const detail = extraTime ? `Empate en el tiempo reglamentario; prórroga simulada ${extraTime[0]} - ${extraTime[1]}. ` : "";
+  showTournamentBracket("FINAL SIMULADA", `Resultado: ${result[0]} - ${result[1]}. ${detail}${winner.club_name} gana la UEFA Champions League.`, "FINALIZAR", finishCompetition);
 }
 function advanceCompetition() {
   if (tournament.scheduleIndex >= tournament.schedule.length) {
