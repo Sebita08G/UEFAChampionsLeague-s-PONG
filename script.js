@@ -248,7 +248,7 @@ function placeTeams() {
   const left = matchTeams[0];
   const right = matchTeams[1];
 
-  // Porteros adelantados respecto a la línea de fondo, pero aún protegiendo la portería.
+  // Posiciones habituales de los cuatro personajes.
   left.goalkeeper.x = FIELD.left + 45;
   left.player.x = FIELD.left + 115;
   right.player.x = FIELD.right - 115 - right.player.width;
@@ -260,6 +260,29 @@ function placeTeams() {
     team.goalkeeper.y = HEIGHT / 2 - team.goalkeeper.height / 2;
     team.player.y = HEIGHT / 2 - team.player.height / 2;
   });
+}
+
+// Coloca al equipo que saca en formación de saque: el jugador con el balón
+// en los pies, en el centro de su propia mitad.
+function prepareKickoffPositions() {
+  placeTeams();
+  const team = matchTeams[kickoffTeam];
+  if (!team) return;
+
+  const midpoint = (FIELD.left + FIELD.right) / 2;
+  const ownHalfCenterX = kickoffTeam === 0
+    ? (FIELD.left + midpoint) / 2
+    : (midpoint + FIELD.right) / 2;
+
+  team.player.x = ownHalfCenterX - team.player.width / 2;
+  team.player.y = HEIGHT / 2 - team.player.height / 2;
+
+  const direction = kickoffTeam === 0 ? 1 : -1;
+  ball.x = team.player.x + team.player.width / 2 + direction * 18;
+  ball.y = team.player.y + team.player.height - ball.radius * 0.55;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.lastHit = null;
 }
 
 function resetBall(direction = Math.random() < 0.5 ? -1 : 1) {
@@ -297,8 +320,7 @@ function beginMatch() {
   goalPauseRemaining = 0;
   cpuKickoffTimer = 0;
   keys = {};
-  placeTeams();
-  resetBall(0);
+  prepareKickoffPositions();
   updateHud();
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
@@ -518,9 +540,6 @@ function registerGoal(scoringTeam) {
   updateHud();
   playSound("goal");
 
-  // Devuelve a todos los personajes a sus posiciones iniciales mientras se muestra el gol.
-  placeTeams();
-
   // El balón permanece dentro de la portería y rebota contra sus cuatro lados.
   goalPauseGoalRect = scoringTeam === 0 ? GOAL.right : GOAL.left;
   const goal = goalPauseGoalRect;
@@ -573,10 +592,10 @@ function updateGoalPause(dt) {
       finishMatch(result.winner, result.title);
       return;
     }
-    resetBall(0);
     goalPauseGoalRect = null;
     matchState = "kickoff";
     cpuKickoffTimer = 0;
+    prepareKickoffPositions();
     updateControlsText();
   }
 }
@@ -584,8 +603,7 @@ function updateGoalPause(dt) {
 function startKickoff(teamIndex) {
   if (matchState !== "kickoff" || teamIndex !== kickoffTeam) return;
   const direction = teamIndex === 0 ? 1 : -1;
-  ball.x = WIDTH / 2;
-  ball.y = HEIGHT / 2;
+  // El balón ya está junto a los pies del jugador que realiza el saque.
   ball.vx = direction * 5.2;
   ball.vy = 0;
   ball.lastHit = teamIndex;
