@@ -715,16 +715,8 @@ function updateMatch(dt) {
   if (remainingTime <= 0) {
     if (currentHalf === 1) {
       beginSecondHalf();
-    } else if (
-      score[0] === score[1] &&
-      tournamentMode &&
-      (tournament.round === "final" || (tournament.round === "semifinal" && tournament.leg === 2))
-    ) {
-      startExtraTime(
-        tournament.round === "final"
-          ? "La final ha terminado empatada. ¡Comienza la prórroga! El primero en marcar 2 goles será campeón."
-          : "La eliminatoria ha terminado empatada en el global. ¡Comienza la prórroga! El primero en marcar 2 goles se clasifica."
-      );
+    } else if (score[0] === score[1] && tournamentMode && tournament.round === "final") {
+      startExtraTime("La final ha terminado empatada. ¡Comienza la prórroga! El primero en marcar 2 goles será campeón.");
     } else if (score[0] === score[1]) {
       finishMatch(null, "¡EMPATE!");
     } else {
