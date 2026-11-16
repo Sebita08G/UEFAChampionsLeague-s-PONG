@@ -445,7 +445,9 @@ function moveCharacter(character, team, dt) {
     const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? goalkeeperFollowMultiplier : 0.68);
     if (Math.abs(difference) > 5) dy = Math.sign(difference);
     if (character.role === "player") {
-      const targetX = Math.max(WIDTH * 0.55, Math.min(WIDTH * 0.82, ball.x + 85));
+      const targetX = side === 0
+        ? Math.max(FIELD.left + 55, Math.min(WIDTH * 0.46 - character.width, ball.x - 85))
+        : Math.max(WIDTH * 0.55, Math.min(FIELD.right - 55 - character.width, ball.x + 85));
       character.x += Math.sign(targetX - character.x) * Math.min(Math.abs(targetX - character.x), cpuSpeed * 0.55);
     }
     character.y += dy * cpuSpeed;
