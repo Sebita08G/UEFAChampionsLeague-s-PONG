@@ -738,6 +738,7 @@ function startExtraTime(message) {
   matchState = "kickoff";
   prepareKickoffPositions();
   updateHud();
+  startMatchMusic();
   showMatchOverlay(
     "PRÓRROGA",
     message,
