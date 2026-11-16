@@ -491,7 +491,7 @@ function moveCharacter(character, team, dt) {
   const isHuman = Boolean(controller);
   const keysForTeam = controller === 1
     ? { up: "w", down: "s", left: "a", right: "d" }
-    : { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "right" };
+    : { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
 
   let dx = 0;
   let dy = 0;
