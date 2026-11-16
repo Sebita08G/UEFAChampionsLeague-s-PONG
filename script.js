@@ -603,13 +603,33 @@ function updateGoalPause(dt) {
 function startKickoff(teamIndex) {
   if (matchState !== "kickoff" || teamIndex !== kickoffTeam) return;
   const direction = teamIndex === 0 ? 1 : -1;
-  // El balón ya está junto a los pies del jugador que realiza el saque.
-  ball.vx = direction * 5.2;
-  ball.vy = 0;
+  const team = matchTeams[teamIndex];
+  const kickStat = getStatValue(team.player, "kick");
+  // El saque tiene potencia según stats.kick, como un rebote normal.
+  const force = 6 + (kickStat - 5) * 1.1;
+
+  let angle = 0;
+  if (team.controlPlayer) {
+    // El jugador apunta manteniendo arriba o abajo mientras prepara el saque.
+    const upKey = team.controlPlayer === 1 ? "w" : "arrowup";
+    const downKey = team.controlPlayer === 1 ? "s" : "arrowdown";
+    if (keys[upKey]) angle = -Math.PI / 6;
+    else if (keys[downKey]) angle = Math.PI / 6;
+  } else {
+    // La CPU dirige el saque hacia una zona cercana al jugador rival.
+    const opponent = matchTeams[1 - teamIndex].player;
+    const targetY = opponent.y + opponent.height / 2;
+    angle = Math.atan2(targetY - ball.y, Math.abs(opponent.x - ball.x));
+    angle = Math.max(-Math.PI / 6, Math.min(Math.PI / 6, angle));
+  }
+
+  ball.vx = direction * force * Math.cos(angle);
+  ball.vy = force * Math.sin(angle);
   ball.lastHit = teamIndex;
   matchState = "playing";
-  matchTeams[teamIndex].player.aiObservedLastHit = teamIndex;
-  matchTeams[teamIndex].goalkeeper.aiObservedLastHit = teamIndex;
+  team.player.aiObservedLastHit = teamIndex;
+  team.goalkeeper.aiObservedLastHit = teamIndex;
+  playSound("kick");
   updateControlsText();
 }
 
