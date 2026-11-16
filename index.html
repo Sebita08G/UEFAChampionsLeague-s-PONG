@@ -30,11 +30,11 @@
     </section>
 
     <section id="clubScreen" class="screen selection-screen hidden">
-      <div class="selection-panel">
+      <div class="selection-panel friendly-panel">
         <p class="eyebrow">MODO AMISTOSO</p>
-        <h1>Selecciona los clubes</h1>
-        <div class="opponent-mode"><label for="gameModeSelect">TIPO DE PARTIDO</label><select id="gameModeSelect"><option value="cpu">Contra la CPU</option><option value="pvp">Dos jugadores</option></select></div>
-        <div id="difficultyMode" class="opponent-mode">
+        <h1>Elige tu bando</h1>
+        <p class="friendly-instructions">Cada jugador puede unirse al equipo local o al visitante. Si ambos se unen al mismo bando, uno controlará al jugador de campo y el otro al portero.</p>
+        <div class="opponent-mode friendly-difficulty">
           <label for="cpuDifficultySelect">DIFICULTAD DE LA CPU</label>
           <select id="cpuDifficultySelect">
             <option value="amateur">Aficionado</option>
@@ -42,26 +42,34 @@
             <option value="legend">Leyenda</option>
           </select>
         </div>
-        <div class="club-selection-grid">
-          <div class="club-picker">
-            <h2 id="teamOneLabel">JUGADOR 1</h2>
-            <div id="teamOneCard" class="club-card"><span class="club-loading">Cargando clubes...</span></div>
-            <label for="teamOneSelect">Club</label>
-            <select id="teamOneSelect"></select>
+        <div class="club-selection-grid friendly-sides">
+          <div class="club-picker friendly-side" data-side="local">
+            <h2>LOCAL</h2>
+            <div id="localTeamCard" class="club-card"><span class="club-loading">Cargando clubes...</span></div>
+            <label for="localClubSelect">Club local</label>
+            <select id="localClubSelect"></select>
+            <div class="side-player-slots">
+              <div class="side-player-slot"><img src="images/menu/player_1.png" alt="Jugador 1"><span id="localPlayer1">Sin seleccionar</span><button class="side-join" data-player="1" data-side="local">UNIR JUGADOR 1</button></div>
+              <div class="side-player-slot"><img src="images/menu/player_2.png" alt="Jugador 2"><span id="localPlayer2">Sin seleccionar</span><button class="side-join" data-player="2" data-side="local">UNIR JUGADOR 2</button></div>
+            </div>
           </div>
           <div class="versus">VS</div>
-          <div class="club-picker">
-            <h2 id="teamTwoLabel">CPU</h2>
-            <div id="teamTwoCard" class="club-card"><span class="club-loading">Cargando clubes...</span></div>
-            <label for="teamTwoSelect">Club</label>
-            <select id="teamTwoSelect"></select>
+          <div class="club-picker friendly-side" data-side="away">
+            <h2>VISITANTE</h2>
+            <div id="awayTeamCard" class="club-card"><span class="club-loading">Cargando clubes...</span></div>
+            <label for="awayClubSelect">Club visitante</label>
+            <select id="awayClubSelect"></select>
+            <div class="side-player-slots">
+              <div class="side-player-slot"><img src="images/menu/player_1.png" alt="Jugador 1"><span id="awayPlayer1">Sin seleccionar</span><button class="side-join" data-player="1" data-side="away">UNIR JUGADOR 1</button></div>
+              <div class="side-player-slot"><img src="images/menu/player_2.png" alt="Jugador 2"><span id="awayPlayer2">Sin seleccionar</span><button class="side-join" data-player="2" data-side="away">UNIR JUGADOR 2</button></div>
+            </div>
           </div>
         </div>
         <div class="selection-actions">
           <button id="backToMenu" class="secondary-button">VOLVER</button>
           <button id="startMatch" class="primary-button" disabled>COMENZAR PARTIDO</button>
         </div>
-        <p id="selectionHint" class="selection-hint">Jugador 1: W A S D · CPU: control automático</p>
+        <p id="selectionHint" class="selection-hint">Elige un bando con Jugador 1 o Jugador 2 para comenzar.</p>
       </div>
     </section>
 
