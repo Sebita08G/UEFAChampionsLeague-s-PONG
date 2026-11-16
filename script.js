@@ -224,7 +224,7 @@ function renderFriendlySelection() {
   const awayPlayers = [1, 2].filter(player => friendlyAssignments[player] === "away");
   const hint = document.getElementById("selectionHint");
   if (!localPlayers.length && !awayPlayers.length) {
-    hint.textContent = "Al menos un jugador debe elegir un bando. El otro equipo lo controlará la CPU.";
+    hint.textContent = "Ningún jugador participa: la CPU controlará ambos equipos con la dificultad seleccionada.";
   } else if (localPlayers.length === 2 || awayPlayers.length === 2) {
     hint.textContent = "Ambos jugadores jugarán juntos: el primero que se unió controlará al jugador de campo y el segundo al portero.";
   } else if (localPlayers.length && awayPlayers.length) {
@@ -261,9 +261,6 @@ function renderFriendlySideSelection() {
 }
 
 function continueToFriendlyClubs() {
-  if (![1, 2].some(player => friendlyAssignments[player])) {
-    return;
-  }
   renderFriendlySelection();
   showScreen("clubs");
 }
@@ -402,10 +399,6 @@ function beginMatch() {
     document.getElementById("selectionHint").textContent = "Selecciona dos clubes válidos antes de comenzar.";
     return;
   }
-  if (![1, 2].some(player => friendlyAssignments[player])) {
-    document.getElementById("selectionHint").textContent = "Al menos un jugador debe unirse al equipo local o visitante.";
-    return;
-  }
   gameMode = friendlyAssignments[1] && friendlyAssignments[2] && friendlyAssignments[1] !== friendlyAssignments[2] ? "pvp" : "cpu";
   cpuDifficulty = document.getElementById("cpuDifficultySelect").value;
   matchTeams = selectedTeams.map((club, index) => {
@@ -414,8 +407,11 @@ function beginMatch() {
     const assignedPlayers = friendlyJoinOrder.filter(player => friendlyAssignments[player] === side);
     team.controllers = { player: 0, goalkeeper: 0 };
     if (assignedPlayers.length === 1) {
+      // Un jugador controla al jugador de campo y al portero simultáneamente.
       team.controllers.player = assignedPlayers[0];
+      team.controllers.goalkeeper = assignedPlayers[0];
     } else if (assignedPlayers.length === 2) {
+      // Cuando ambos juegan juntos, el primero controla campo y el segundo portería.
       team.controllers.player = assignedPlayers[0];
       team.controllers.goalkeeper = assignedPlayers[1];
     }
