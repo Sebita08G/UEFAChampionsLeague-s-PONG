@@ -67,6 +67,8 @@ let gameMode = "cpu";
 let cpuDifficulty = "professional";
 let tournamentMode = false;
 let tournament = null;
+let bracketContinueAction = null;
+let matchStateBeforeBracket = "playing";
 
 const CPU_DIFFICULTIES = {
   amateur: { reactionSeconds: 0.40 },
@@ -830,7 +832,12 @@ function beginChampionsTournament() {
   };
   tournamentMode = true;
   gameMode = "cpu";
-  startTournamentMatch(tournament.semifinalOpponent, 1);
+  showTournamentBracket(
+    "SEMIFINALES · IDA",
+    "Este es el cuadro inicial. La otra semifinal ya se ha simulado. Revisa los emparejamientos antes de comenzar tu eliminatoria.",
+    "COMENZAR IDA",
+    () => startTournamentMatch(tournament.semifinalOpponent, 1)
+  );
 }
 
 function startTournamentMatch(opponent, leg) {
@@ -860,7 +867,7 @@ function startTournamentMatch(opponent, leg) {
   updateHud();
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
-  document.getElementById("viewBracket").classList.add("hidden");
+  document.getElementById("viewBracket").classList.remove("hidden");
   showScreen("game");
   startMatchMusic();
   lastFrame = performance.now();
@@ -868,9 +875,18 @@ function startTournamentMatch(opponent, leg) {
   animationFrame = requestAnimationFrame(gameLoop);
 }
 
-function finishTournamentAndReturn(title, message) {
+function showTournamentBracket(status, message, buttonLabel, action) {
   renderTournamentBracket();
-  showMatchOverlay(title, message, "VOLVER AL MENÚ", returnToMenu);
+  document.getElementById("bracketStatus").textContent = status;
+  document.getElementById("bracketMessage").textContent = message;
+  const button = document.getElementById("bracketBack");
+  button.textContent = buttonLabel;
+  bracketContinueAction = action;
+  showScreen("bracket");
+}
+
+function finishTournamentAndReturn(title, message) {
+  showTournamentBracket(title, message, "VOLVER AL MENÚ", returnToMenu);
 }
 
 function handleTournamentMatchEnd(winnerIndex, matchMessage) {
@@ -882,11 +898,10 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     tournament.aggregatePlayer = playerGoals;
     tournament.aggregateOpponent = opponentGoals;
     tournament.playerSemi.firstLeg = [playerGoals, opponentGoals];
-    renderTournamentBracket();
-    showMatchOverlay(
-      "FIN DE LA IDA",
-      `${matchMessage}. Global provisional: ${playerGoals} - ${opponentGoals}.`,
-      "JUGAR LA VUELTA",
+    showTournamentBracket(
+      "SEMIFINAL · IDA FINALIZADA",
+      `${matchMessage}. Resultado de ida: ${playerGoals} - ${opponentGoals}. Consulta el global provisional en el cuadro.`,
+      "CONTINUAR A LA VUELTA",
       () => startTournamentMatch(tournament.semifinalOpponent, 2)
     );
     return;
@@ -898,30 +913,33 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     tournament.playerSemi.secondLeg = [playerGoals, opponentGoals];
     tournament.playerSemi.aggregatePlayer = tournament.aggregatePlayer;
     tournament.playerSemi.aggregateOpponent = tournament.aggregateOpponent;
+
     if (tournament.aggregatePlayer === tournament.aggregateOpponent) {
-      renderTournamentBracket();
-      finishTournamentAndReturn(
-        "SEMIFINAL EMPATADA",
-        `Global ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. La eliminatoria necesita un desempate, que todavía no está implementado.`
+      showTournamentBracket(
+        "SEMIFINAL · EMPATE GLOBAL",
+        `La eliminatoria termina ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. Hace falta un desempate, que todavía no está implementado.`,
+        "VOLVER AL MENÚ",
+        returnToMenu
       );
       return;
     }
     if (tournament.aggregatePlayer < tournament.aggregateOpponent) {
       tournament.playerSemi.winner = tournament.semifinalOpponent;
-      renderTournamentBracket();
-      finishTournamentAndReturn(
+      showTournamentBracket(
         "ELIMINADO EN SEMIFINALES",
-        `Global: ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}.`
+        `La eliminatoria termina ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent} en el global. ${tournament.semifinalOpponent.club_name} se clasifica para la final.`,
+        "VOLVER AL MENÚ",
+        returnToMenu
       );
       return;
     }
+
     tournament.playerSemi.winner = tournament.playerClub;
     tournament.round = "final";
-    renderTournamentBracket();
-    showMatchOverlay(
+    showTournamentBracket(
       "¡CLASIFICADO PARA LA FINAL!",
-      `Has ganado la semifinal por ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. Tu rival será ${tournament.finalOpponent.club_name}.`,
-      "JUGAR LA FINAL",
+      `Has ganado la semifinal por ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. Tu rival será ${tournament.finalOpponent.club_name}. La final se disputa a un solo partido.`,
+      "COMENZAR LA FINAL",
       () => startTournamentMatch(tournament.finalOpponent, 1)
     );
     return;
@@ -932,21 +950,24 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     opponentGoals,
     winner: winnerIndex === null ? null : matchTeams[winnerIndex].club
   };
-  renderTournamentBracket();
   if (winnerIndex === null) {
-    finishTournamentAndReturn(
+    showTournamentBracket(
       "FINAL EMPATADA",
-      "La final ha terminado en empate. Todavía no está implementada la tanda de penaltis."
+      "La final ha terminado en empate. Todavía no está implementada la tanda de penaltis.",
+      "VOLVER AL MENÚ",
+      returnToMenu
     );
     return;
   }
   const champion = matchTeams[winnerIndex];
   const playerWon = champion.controlPlayer === 1;
-  finishTournamentAndReturn(
-    playerWon ? "¡CAMPEÓN DE EUROPA!" : "FIN DE LA COMPETICIÓN",
+  showTournamentBracket(
+    playerWon ? "¡CAMPEÓN DE EUROPA!" : "COMPETICIÓN FINALIZADA",
     playerWon
       ? `¡Has conquistado la UEFA Champions League con ${tournament.playerClub.club_name}! 🏆`
-      : `${champion.club.club_name} ha ganado la final.`
+      : `${champion.club.club_name} ha ganado la final. Marcador: ${playerGoals} - ${opponentGoals}.`,
+    "VOLVER AL MENÚ",
+    returnToMenu
   );
 }
 
@@ -1038,17 +1059,17 @@ function renderTournamentBracket() {
 
 function openTournamentBracket() {
   if (!tournamentMode || !tournament) return;
-  renderTournamentBracket();
-  window.matchStateBeforeBracket = matchState;
-  matchState = "bracket_view";
-  showScreen("bracket");
-}
-
-function closeTournamentBracket() {
-  if (!tournamentMode) return;
-  matchState = window.matchStateBeforeBracket || "playing";
-  showScreen("game");
-  lastFrame = performance.now();
+  matchStateBeforeBracket = matchState;
+  showTournamentBracket(
+    tournament.round === "final" ? "GRAN FINAL" : `SEMIFINAL · ${tournament.leg === 1 ? "IDA" : "VUELTA"}`,
+    "Consulta el progreso de todas las eliminatorias. Puedes volver al partido cuando quieras.",
+    "VOLVER AL PARTIDO",
+    () => {
+      matchState = matchStateBeforeBracket;
+      showScreen("game");
+      lastFrame = performance.now();
+    }
+  );
 }
 
 function drawCharacter(character) {
@@ -1170,15 +1191,8 @@ document.getElementById("championsClubSelect").addEventListener("change", update
 document.getElementById("championsBack").addEventListener("click", () => showScreen("menu"));
 document.getElementById("startChampions").addEventListener("click", beginChampionsTournament);
 document.getElementById("viewBracket").addEventListener("click", openTournamentBracket);
-document.getElementById("bracketBack").addEventListener("click", closeTournamentBracket);
-document.getElementById("championsMode").addEventListener("click", () => {
-  updateChampionsClubCard();
-  showScreen("champions");
-});
-document.getElementById("championsClubSelect").addEventListener("change", updateChampionsClubCard);
-document.getElementById("championsBack").addEventListener("click", () => showScreen("menu"));
-document.getElementById("startChampions").addEventListener("click", () => {
-  document.getElementById("championsHint").textContent = "La configuración está preparada. El siguiente paso es conectar el cuadro y los partidos de la competición.";
+document.getElementById("bracketBack").addEventListener("click", () => {
+  if (typeof bracketContinueAction === "function") bracketContinueAction();
 });
 document.getElementById("gameModeSelect").addEventListener("change", updateModeSelection);
 document.getElementById("cpuDifficultySelect").addEventListener("change", event => {
