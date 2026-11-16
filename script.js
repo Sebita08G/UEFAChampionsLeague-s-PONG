@@ -989,8 +989,12 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
       : tournament.playerSemi.firstLeg[0] === tournament.playerSemi.firstLeg[1] ? 1 : 0;
     const secondLegPoints = playerGoals > opponentGoals ? 3
       : playerGoals === opponentGoals ? 1 : 0;
+    const firstLegOpponentPoints = tournament.playerSemi.firstLeg[1] > tournament.playerSemi.firstLeg[0] ? 3
+      : tournament.playerSemi.firstLeg[1] === tournament.playerSemi.firstLeg[0] ? 1 : 0;
+    const secondLegOpponentPoints = opponentGoals > playerGoals ? 3
+      : opponentGoals === playerGoals ? 1 : 0;
     const playerPoints = firstLegPoints + secondLegPoints;
-    const opponentPoints = 6 - playerPoints;
+    const opponentPoints = firstLegOpponentPoints + secondLegOpponentPoints;
     const playerGoalDifference = tournament.aggregatePlayer - tournament.aggregateOpponent;
 
     tournament.playerSemi.playerPoints = playerPoints;
