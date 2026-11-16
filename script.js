@@ -518,9 +518,13 @@ function registerGoal(scoringTeam) {
   updateHud();
   playSound("goal");
 
-  // Mantiene el balón dentro de la portería y lo frena durante la pausa.
-  const goal = scoringTeam === 0 ? GOAL.right : GOAL.left;
-  ball.x = scoringTeam === 0 ? goal.x + goal.width - ball.radius : goal.x + ball.radius;
+  // Devuelve a todos los personajes a sus posiciones iniciales mientras se muestra el gol.
+  placeTeams();
+
+  // El balón permanece dentro de la portería y rebota contra sus cuatro lados.
+  goalPauseGoalRect = scoringTeam === 0 ? GOAL.right : GOAL.left;
+  const goal = goalPauseGoalRect;
+  ball.x = scoringTeam === 0 ? goal.x + goal.width - ball.radius - 1 : goal.x + ball.radius + 1;
   ball.y = Math.max(goal.y + ball.radius, Math.min(goal.y + goal.height - ball.radius, ball.y));
   ball.vx = scoringTeam === 0 ? Math.max(2, Math.abs(ball.vx) * 0.55) : -Math.max(2, Math.abs(ball.vx) * 0.55);
   ball.vy *= 0.55;
@@ -533,11 +537,31 @@ function registerGoal(scoringTeam) {
 }
 
 let pendingMatchFinish = null;
+let goalPauseGoalRect = null;
 
 function updateGoalPause(dt) {
+  const goal = goalPauseGoalRect;
   const friction = Math.pow(0.94, dt);
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
+
+  // Rebotes dentro de la hitbox de la portería, igual que contra las paredes del campo.
+  if (goal) {
+    const minX = goal.x + ball.radius;
+    const maxX = goal.x + goal.width - ball.radius;
+    const minY = goal.y + ball.radius;
+    const maxY = goal.y + goal.height - ball.radius;
+
+    if (ball.x <= minX || ball.x >= maxX) {
+      ball.x = Math.max(minX, Math.min(maxX, ball.x));
+      ball.vx *= -1;
+    }
+    if (ball.y <= minY || ball.y >= maxY) {
+      ball.y = Math.max(minY, Math.min(maxY, ball.y));
+      ball.vy *= -1;
+    }
+  }
+
   ball.vx *= friction;
   ball.vy *= friction;
   goalPauseRemaining -= dt / 60;
@@ -550,8 +574,9 @@ function updateGoalPause(dt) {
       return;
     }
     resetBall(0);
+    goalPauseGoalRect = null;
     matchState = "kickoff";
-    cpuKickoffTimer = 0.6;
+    cpuKickoffTimer = 0;
     updateControlsText();
   }
 }
@@ -574,7 +599,7 @@ function updateKickoff(dt) {
   // La CPU ejecuta el saque automáticamente cuando le corresponde.
   if (gameMode === "cpu" && kickoffTeam === 1) {
     cpuKickoffTimer += dt / 60;
-    if (cpuKickoffTimer >= 0.6) startKickoff(1);
+    if (cpuKickoffTimer >= 1) startKickoff(1);
   }
 }
 
