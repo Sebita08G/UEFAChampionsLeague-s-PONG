@@ -21,8 +21,11 @@
       <div class="menu-panel">
         <p class="eyebrow">MENÚ PRINCIPAL</p>
         <h1>Selecciona un modo de juego</h1>
-        <button id="friendlyMode" class="primary-button">AMISTOSO</button>
-        <p class="menu-description">Un partido libre contra la CPU o contra otro jugador.</p>
+        <div class="menu-mode-buttons">
+          <button id="friendlyMode" class="primary-button">AMISTOSO</button>
+          <button id="championsMode" class="primary-button champions-button">UEFA CHAMPIONS LEAGUE</button>
+        </div>
+        <p class="menu-description">Un partido libre o lucha por conquistar Europa.</p>
       </div>
     </section>
 
@@ -59,6 +62,37 @@
           <button id="startMatch" class="primary-button" disabled>COMENZAR PARTIDO</button>
         </div>
         <p id="selectionHint" class="selection-hint">Jugador 1: W A S D · CPU: control automático</p>
+      </div>
+    </section>
+
+    <section id="championsScreen" class="screen selection-screen hidden">
+      <div class="selection-panel champions-panel">
+        <p class="eyebrow">UEFA CHAMPIONS LEAGUE</p>
+        <h1>Comienza tu camino hacia la gloria</h1>
+        <div class="champions-setup">
+          <div class="club-picker">
+            <h2>ELIGE TU CLUB</h2>
+            <div id="championsClubCard" class="club-card"><span class="club-loading">Cargando clubes...</span></div>
+            <label for="championsClubSelect">Mi equipo</label>
+            <select id="championsClubSelect"></select>
+          </div>
+          <div class="champions-options">
+            <label for="championsDifficultySelect">DIFICULTAD DE LA COMPETICIÓN</label>
+            <select id="championsDifficultySelect">
+              <option value="amateur">Aficionado</option>
+              <option value="professional" selected>Profesional</option>
+              <option value="legend">Leyenda</option>
+            </select>
+            <p>Semifinales: ida y vuelta</p>
+            <p>Final: un único partido</p>
+            <p class="champions-note">Los otros tres clubes se asignarán automáticamente.</p>
+          </div>
+        </div>
+        <div class="selection-actions">
+          <button id="championsBack" class="secondary-button">VOLVER</button>
+          <button id="startChampions" class="primary-button" disabled>INICIAR COMPETICIÓN</button>
+        </div>
+        <p id="championsHint" class="selection-hint">Selecciona tu club y la dificultad.</p>
       </div>
     </section>
 
