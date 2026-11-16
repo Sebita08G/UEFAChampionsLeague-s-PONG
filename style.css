@@ -148,3 +148,46 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
 
 .club-loading { color: #c5d6ee; font-size: 13px; }
 #selectionHint { overflow-wrap: anywhere; line-height: 1.5; }
+
+
+/* Cuadro de eliminatorias de la UEFA Champions League */
+.bracket-screen { align-items: flex-start; overflow-y: auto; }
+.bracket-panel {
+  width: min(1180px, 98vw);
+  padding: clamp(20px, 3vw, 38px);
+  background: rgba(3, 12, 29, .94);
+  border: 1px solid rgba(139, 188, 255, .38);
+  border-radius: 18px;
+  box-shadow: 0 20px 70px rgba(0,0,0,.48);
+}
+.bracket-heading { display: flex; align-items: center; justify-content: space-between; }
+.bracket-heading h1 { margin-bottom: 18px; }
+.bracket-trophy { font-size: 52px; filter: drop-shadow(0 4px 12px rgba(255,190,45,.25)); }
+.bracket-status { margin: 0 0 22px; padding: 10px 14px; text-align: center; color: #a9ceff; background: rgba(17,62,125,.3); border: 1px solid rgba(120,175,255,.2); border-radius: 7px; font-size: 12px; font-weight: 900; letter-spacing: .16em; }
+.tournament-bracket { display: grid; grid-template-columns: minmax(0, 1.3fr) 34px minmax(260px, .9fr); align-items: center; gap: 16px; }
+.bracket-column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.bracket-column > h2 { margin: 0; color: #82baff; font-size: 13px; letter-spacing: .17em; }
+.bracket-match { padding: 14px; background: rgba(255,255,255,.055); border: 1px solid rgba(150,190,245,.2); border-radius: 10px; }
+.bracket-match.current { border-color: rgba(48,139,255,.75); box-shadow: inset 0 0 0 1px rgba(48,139,255,.15); }
+.bracket-match h3 { margin: 0 0 12px; color: #a9ceff; font-size: 11px; letter-spacing: .1em; }
+.bracket-team { display: grid; grid-template-columns: 30px minmax(0,1fr) auto; align-items: center; gap: 9px; min-height: 40px; padding: 5px 8px; background: rgba(0,0,0,.17); border-radius: 6px; }
+.bracket-team + .bracket-team { margin-top: 5px; }
+.bracket-team img { width: 26px; height: 26px; object-fit: contain; }
+.bracket-team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; }
+.bracket-team-score { color: #fff; font-size: 15px; }
+.bracket-team.qualified { background: rgba(21,128,74,.22); }
+.bracket-team.qualified .bracket-team-name::after { content: " ✓"; color: #55e39b; }
+.bracket-match-scores { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 5px; margin-top: 10px; }
+.bracket-match-scores p { margin: 0; padding: 6px 4px; text-align: center; color: #c2d8f5; background: rgba(5,20,43,.75); border-radius: 5px; font-size: 10px; }
+.bracket-qualified { margin-top: 10px; color: #65e6a4; font-size: 10px; font-weight: 900; letter-spacing: .08em; }
+.bracket-connector { color: #5b9df3; text-align: center; font-size: 48px; font-weight: 300; }
+.bracket-champion { margin-top: 18px; padding: 18px 10px; text-align: center; color: #ffdc83; background: rgba(128,87,16,.15); border: 1px solid rgba(255,206,95,.3); border-radius: 9px; font-weight: 900; font-size: 14px; }
+.bracket-actions { display: flex; justify-content: center; margin-top: 28px; }
+.game-footer-actions { display: flex; gap: 10px; }
+@media (max-width: 760px) {
+  .tournament-bracket { grid-template-columns: 1fr; }
+  .bracket-connector { transform: rotate(90deg); line-height: .8; }
+  .bracket-match-scores { grid-template-columns: 1fr; }
+  .bracket-heading h1 { font-size: 23px; }
+  .game-footer-actions { width: 100%; flex-direction: column; }
+}
