@@ -64,6 +64,8 @@ audio.finalWhistle.volume = 0.9;
 let clubs = [];
 let gameMode = "cpu";
 let cpuDifficulty = "professional";
+let tournamentMode = false;
+let tournament = null;
 
 const CPU_DIFFICULTIES = {
   amateur: { reactionSeconds: 0.40 },
@@ -324,6 +326,8 @@ function resetBall(direction = Math.random() < 0.5 ? -1 : 1) {
 let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 15, vx: 5.2, vy: 2, lastHit: null };
 
 function beginMatch() {
+  tournamentMode = false;
+  tournament = null;
   const firstFolder = document.getElementById("teamOneSelect").value;
   const secondFolder = document.getElementById("teamTwoSelect").value;
   selectedTeams = [
@@ -663,10 +667,10 @@ function startKickoff(teamIndex) {
 }
 
 function updateKickoff(dt) {
-  // La CPU ejecuta el saque automáticamente cuando le corresponde.
-  if (gameMode === "cpu" && kickoffTeam === 1) {
+  // La CPU ejecuta el saque automáticamente, ocupe el lado que ocupe.
+  if (!matchTeams[kickoffTeam]?.controlPlayer) {
     cpuKickoffTimer += dt / 60;
-    if (cpuKickoffTimer >= 1) startKickoff(1);
+    if (cpuKickoffTimer >= 1) startKickoff(kickoffTeam);
   }
 }
 
@@ -740,11 +744,14 @@ function finishMatch(winnerIndex, title) {
   audio.finalWhistle.pause();
   audio.finalWhistle.currentTime = 0;
 
+  const playerSide = matchTeams.findIndex(team => team.controlPlayer === 1);
   const resultTitle = winnerIndex === null
     ? "¡EMPATE!"
-    : gameMode === "cpu"
-      ? (winnerIndex === 0 ? "¡VICTORIA!" : "¡DERROTA!")
-      : (title || "¡PARTIDO FINALIZADO!");
+    : tournamentMode
+      ? (winnerIndex === playerSide ? "¡VICTORIA!" : "¡DERROTA!")
+      : gameMode === "cpu"
+        ? (winnerIndex === 0 ? "¡VICTORIA!" : "¡DERROTA!")
+        : (title || "¡PARTIDO FINALIZADO!");
   const message = winnerIndex === null
     ? `Empate ${score[0]} - ${score[1]}`
     : `${matchTeams[winnerIndex].club.club_name} gana ${score[0]} - ${score[1]}`;
@@ -752,6 +759,10 @@ function finishMatch(winnerIndex, title) {
   const revealResult = () => {
     if (matchState !== "final_whistle") return;
     matchState = "finished";
+    if (tournamentMode) {
+      handleTournamentMatchEnd(winnerIndex, message);
+      return;
+    }
     showMatchOverlay(resultTitle, message, "VOLVER AL MENÚ", () => {
       matchState = "stopped";
       showScreen("menu");
@@ -765,6 +776,152 @@ function finishMatch(winnerIndex, title) {
     // Si el navegador no puede reproducir el archivo, no dejamos el partido bloqueado.
     revealResult();
   });
+}
+
+function shuffleClubs(list) {
+  const result = [...list];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function simulateCpuSemi(clubA, clubB) {
+  const firstLeg = [Math.floor(Math.random() * 5), Math.floor(Math.random() * 5)];
+  const secondLeg = [Math.floor(Math.random() * 5), Math.floor(Math.random() * 5)];
+  const totalA = firstLeg[0] + secondLeg[1];
+  const totalB = firstLeg[1] + secondLeg[0];
+  const winner = totalA === totalB
+    ? (Math.random() < 0.5 ? clubA : clubB)
+    : (totalA > totalB ? clubA : clubB);
+  return { winner, firstLeg, secondLeg, totalA, totalB };
+}
+
+function getTournamentDifficulty() {
+  if (tournament.round === "semifinal") return tournament.difficulty;
+  return tournament.difficulty === "amateur" ? "professional" : "legend";
+}
+
+function beginChampionsTournament() {
+  const playerClub = clubs.find(club => club.folder === document.getElementById("championsClubSelect").value);
+  if (!playerClub || clubs.length < 4) {
+    document.getElementById("championsHint").textContent = "No hay cuatro clubes disponibles para iniciar la competición.";
+    return;
+  }
+  const opponents = shuffleClubs(clubs.filter(club => club.folder !== playerClub.folder)).slice(0, 3);
+  tournament = {
+    playerClub,
+    difficulty: document.getElementById("championsDifficultySelect").value,
+    semifinalOpponent: opponents[0],
+    finalOpponent: simulateCpuSemi(opponents[1], opponents[2]).winner,
+    round: "semifinal",
+    leg: 1,
+    aggregatePlayer: 0,
+    aggregateOpponent: 0
+  };
+  tournamentMode = true;
+  gameMode = "cpu";
+  startTournamentMatch(tournament.semifinalOpponent, 1);
+}
+
+function startTournamentMatch(opponent, leg) {
+  tournament.leg = leg;
+  tournament.currentOpponent = opponent;
+  cpuDifficulty = getTournamentDifficulty();
+  const playerOnLeft = tournament.round === "final" || leg === 1;
+  const leftClub = playerOnLeft ? tournament.playerClub : opponent;
+  const rightClub = playerOnLeft ? opponent : tournament.playerClub;
+  matchTeams = [leftClub, rightClub].map((club, index) => {
+    const team = createTeam(club, index);
+    team.controlPlayer = club.folder === tournament.playerClub.folder ? 1 : 0;
+    return team;
+  });
+  selectedTeams = [leftClub, rightClub];
+  score = [0, 0];
+  remainingTime = TOTAL_SECONDS;
+  currentHalf = 1;
+  matchState = "kickoff";
+  kickoffTeam = 0;
+  goalPauseRemaining = 0;
+  goalPauseGoalRect = null;
+  pendingMatchFinish = null;
+  cpuKickoffTimer = 0;
+  keys = {};
+  prepareKickoffPositions();
+  updateHud();
+  updateControlsText();
+  document.getElementById("matchOverlay").classList.add("hidden");
+  showScreen("game");
+  startMatchMusic();
+  lastFrame = performance.now();
+  cancelAnimationFrame(animationFrame);
+  animationFrame = requestAnimationFrame(gameLoop);
+}
+
+function finishTournamentAndReturn(title, message) {
+  showMatchOverlay(title, message, "VOLVER AL MENÚ", returnToMenu);
+}
+
+function handleTournamentMatchEnd(winnerIndex, matchMessage) {
+  const playerSide = matchTeams.findIndex(team => team.controlPlayer === 1);
+  const playerGoals = score[playerSide];
+  const opponentGoals = score[1 - playerSide];
+
+  if (tournament.round === "semifinal" && tournament.leg === 1) {
+    tournament.aggregatePlayer = playerGoals;
+    tournament.aggregateOpponent = opponentGoals;
+    showMatchOverlay(
+      "FIN DE LA IDA",
+      `${matchMessage}. Global provisional: ${playerGoals} - ${opponentGoals}.`,
+      "JUGAR LA VUELTA",
+      () => startTournamentMatch(tournament.semifinalOpponent, 2)
+    );
+    return;
+  }
+
+  if (tournament.round === "semifinal") {
+    tournament.aggregatePlayer += playerGoals;
+    tournament.aggregateOpponent += opponentGoals;
+    if (tournament.aggregatePlayer === tournament.aggregateOpponent) {
+      finishTournamentAndReturn(
+        "SEMIFINAL EMPATADA",
+        `Global ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. La eliminatoria necesita un desempate, que todavía no está implementado.`
+      );
+      return;
+    }
+    if (tournament.aggregatePlayer < tournament.aggregateOpponent) {
+      finishTournamentAndReturn(
+        "ELIMINADO EN SEMIFINALES",
+        `Global: ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}.`
+      );
+      return;
+    }
+    tournament.round = "final";
+    showMatchOverlay(
+      "¡CLASIFICADO PARA LA FINAL!",
+      `Has ganado la semifinal por ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. Tu rival será ${tournament.finalOpponent.club_name}.`,
+      "JUGAR LA FINAL",
+      () => startTournamentMatch(tournament.finalOpponent, 1)
+    );
+    return;
+  }
+
+  if (winnerIndex === null) {
+    finishTournamentAndReturn(
+      "FINAL EMPATADA",
+      "La final ha terminado en empate. Todavía no está implementada la tanda de penaltis."
+    );
+    return;
+  }
+  const champion = matchTeams[winnerIndex];
+  const playerWon = champion.controlPlayer === 1;
+  finishTournamentAndReturn(
+    playerWon ? "¡CAMPEÓN DE EUROPA!" : "FIN DE LA COMPETICIÓN",
+    playerWon
+      ? `¡Has conquistado la UEFA Champions League con ${tournament.playerClub.club_name}! 🏆`
+      : `${champion.club.club_name} ha ganado la final.`
+  );
 }
 
 function drawCharacter(character) {
@@ -873,9 +1030,18 @@ document.getElementById("introStart").addEventListener("click", () => {
   startMenuMusic();
 });
 document.getElementById("friendlyMode").addEventListener("click", () => {
+  tournamentMode = false;
+  tournament = null;
   updateModeSelection();
   showScreen("clubs");
 });
+document.getElementById("championsMode").addEventListener("click", () => {
+  updateChampionsClubCard();
+  showScreen("champions");
+});
+document.getElementById("championsClubSelect").addEventListener("change", updateChampionsClubCard);
+document.getElementById("championsBack").addEventListener("click", () => showScreen("menu"));
+document.getElementById("startChampions").addEventListener("click", beginChampionsTournament);
 document.getElementById("championsMode").addEventListener("click", () => {
   updateChampionsClubCard();
   showScreen("champions");
