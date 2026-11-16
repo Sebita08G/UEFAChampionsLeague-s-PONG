@@ -493,8 +493,14 @@ function updateTimerDisplay() {
     document.getElementById("matchTimer").textContent = "∞";
     return;
   }
-  const minutes = Math.floor(remainingTime / 60);
-  const seconds = Math.floor(remainingTime % 60);
+  // El reloj televisivo cuenta hacia arriba: 00:00–02:30 en la primera
+  // parte y continúa desde 02:30 hasta 05:00 en la segunda.
+  const elapsedInHalf = HALF_SECONDS - remainingTime;
+  const elapsedMatchTime = currentHalf === 2
+    ? HALF_SECONDS + elapsedInHalf
+    : elapsedInHalf;
+  const minutes = Math.floor(elapsedMatchTime / 60);
+  const seconds = Math.floor(elapsedMatchTime % 60);
   document.getElementById("matchTimer").textContent =
     `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
