@@ -79,6 +79,12 @@ function getCpuReactionFrames() {
 }
 let selectedTeams = [];
 let matchTeams = [];
+const friendlyAssignments = { 1: null, 2: null };
+let friendlyJoinOrder = [];
+const playerIcons = {
+  1: loadImage("images/menu/player_1.png"),
+  2: loadImage("images/menu/player_2.png")
+};
 let score = [0, 0];
 let remainingTime = HALF_SECONDS;
 let currentHalf = 1;
@@ -170,6 +176,7 @@ async function loadClubs() {
 
   populateClubSelectors();
   populateChampionsSelector();
+  renderFriendlySelection();
   startButton.disabled = false;
   document.getElementById("startChampions").disabled = clubs.length < 4;
   document.getElementById("championsHint").textContent = clubs.length < 4
@@ -183,10 +190,9 @@ async function loadClubs() {
 
 function populateClubSelectors() {
   const selects = [
-    document.getElementById("teamOneSelect"),
-    document.getElementById("teamTwoSelect")
+    document.getElementById("localClubSelect"),
+    document.getElementById("awayClubSelect")
   ];
-
   selects.forEach(select => {
     select.innerHTML = "";
     clubs.forEach(club => {
@@ -196,10 +202,57 @@ function populateClubSelectors() {
       select.appendChild(option);
     });
   });
+  if (clubs.length) {
+    selects[0].value = clubs[0].folder;
+    selects[1].value = (clubs[1] || clubs[0]).folder;
+  }
+  updateFriendlyClubCards();
+}
 
-  selects[0].value = clubs[0].folder;
-  selects[1].value = (clubs[1] || clubs[0]).folder;
-  updateClubCards();
+function updateFriendlyClubCards() {
+  const local = clubs.find(club => club.folder === document.getElementById("localClubSelect").value);
+  const away = clubs.find(club => club.folder === document.getElementById("awayClubSelect").value);
+  if (local) renderClubCard("localTeamCard", local);
+  if (away) renderClubCard("awayTeamCard", away);
+}
+
+function renderFriendlySelection() {
+  updateFriendlyClubCards();
+  [1, 2].forEach(player => {
+    const side = friendlyAssignments[player];
+    ["local", "away"].forEach(candidate => {
+      const button = document.querySelector(`.side-join[data-player="${player}"][data-side="${candidate}"]`);
+      const label = document.getElementById(`${candidate}Player${player}`);
+      const selected = side === candidate;
+      button.classList.toggle("selected", selected);
+      button.textContent = selected ? `JUGADOR ${player} · SELECCIONADO` : `UNIR JUGADOR ${player}`;
+      label.textContent = selected ? `Jugador ${player} preparado` : "Sin seleccionar";
+    });
+  });
+  const joined = [1, 2].filter(player => friendlyAssignments[player]);
+  const hint = document.getElementById("selectionHint");
+  if (!joined.length) {
+    hint.textContent = "Elige un bando con Jugador 1 o Jugador 2 para comenzar.";
+  } else {
+    const localPlayers = joined.filter(player => friendlyAssignments[player] === "local");
+    const awayPlayers = joined.filter(player => friendlyAssignments[player] === "away");
+    const roleText = localPlayers.length === 2 || awayPlayers.length === 2
+      ? "El primero en unirse será el jugador de campo y el segundo controlará al portero."
+      : "Cada jugador controlará al jugador de campo de su equipo.";
+    hint.textContent = `${localPlayers.length} jugador(es) en Local · ${awayPlayers.length} en Visitante. ${roleText}`;
+  }
+}
+
+function assignFriendlyPlayer(player, side) {
+  if (friendlyAssignments[player] === side) {
+    friendlyAssignments[player] = null;
+    friendlyJoinOrder = friendlyJoinOrder.filter(item => item !== player);
+  } else {
+    friendlyAssignments[player] = side;
+    friendlyJoinOrder = friendlyJoinOrder.filter(item => item !== player);
+    friendlyJoinOrder.push(player);
+  }
+  renderFriendlySelection();
 }
 
 function populateChampionsSelector() {
@@ -237,12 +290,7 @@ function renderClubCard(containerId, club) {
   container.append(shield, name);
 }
 
-function updateClubCards() {
-  const first = clubs.find(club => club.folder === document.getElementById("teamOneSelect").value);
-  const second = clubs.find(club => club.folder === document.getElementById("teamTwoSelect").value);
-  if (first) renderClubCard("teamOneCard", first);
-  if (second) renderClubCard("teamTwoCard", second);
-}
+
 
 function makeCharacter(club, role, teamIndex) {
   const data = club[role];
@@ -331,8 +379,8 @@ let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 15, vx: 5.2, vy: 2, lastHit: n
 function beginMatch() {
   tournamentMode = false;
   tournament = null;
-  const firstFolder = document.getElementById("teamOneSelect").value;
-  const secondFolder = document.getElementById("teamTwoSelect").value;
+  const firstFolder = document.getElementById("localClubSelect").value;
+  const secondFolder = document.getElementById("awayClubSelect").value;
   selectedTeams = [
     clubs.find(club => club.folder === firstFolder),
     clubs.find(club => club.folder === secondFolder)
@@ -341,9 +389,24 @@ function beginMatch() {
     document.getElementById("selectionHint").textContent = "Selecciona dos clubes válidos antes de comenzar.";
     return;
   }
+  if (![1, 2].some(player => friendlyAssignments[player])) {
+    document.getElementById("selectionHint").textContent = "Al menos un jugador debe unirse al equipo local o visitante.";
+    return;
+  }
+  gameMode = [1, 2].every(player => friendlyAssignments[player]) ? "pvp" : "cpu";
+  cpuDifficulty = document.getElementById("cpuDifficultySelect").value;
   matchTeams = selectedTeams.map((club, index) => {
     const team = createTeam(club, index);
-    team.controlPlayer = index === 0 ? 1 : (gameMode === "pvp" ? 2 : 0);
+    const side = index === 0 ? "local" : "away";
+    const assignedPlayers = friendlyJoinOrder.filter(player => friendlyAssignments[player] === side);
+    team.controllers = { player: 0, goalkeeper: 0 };
+    if (assignedPlayers.length === 1) {
+      team.controllers.player = assignedPlayers[0];
+    } else if (assignedPlayers.length === 2) {
+      team.controllers.player = assignedPlayers[0];
+      team.controllers.goalkeeper = assignedPlayers[1];
+    }
+    team.controlPlayer = team.controllers.player || 0;
     return team;
   });
   score = [0, 0];
@@ -396,12 +459,19 @@ function updateTimerDisplay() {
 }
 
 function updateControlsText() {
-  const text = gameMode === "cpu"
+  const controls = [];
+  matchTeams.forEach((team, side) => {
+    const localName = side === 0 ? "Local" : "Visitante";
+    Object.entries(team.controllers || {}).forEach(([role, player]) => {
+      if (player) controls.push(`J${player} ${localName}: ${role === "player" ? "campo" : "portero"}`);
+    });
+  });
+  const text = tournamentMode
     ? "Jugador 1: W A S D · CPU: control automático"
-    : "Jugador 1: W A S D · Jugador 2: FLECHAS";
-  const status = matchState === "kickoff"
-    ? `SAQUE: ${kickoffTeam === 0 ? "EQUIPO IZQUIERDO (D)" : (gameMode === "cpu" ? "CPU" : "EQUIPO DERECHO (←)")}`
-    : text;
+    : `${controls.join(" · ") || "CPU: control automático"} · J1: WASD · J2: FLECHAS`;
+  const kickoffController = matchTeams[kickoffTeam]?.controllers?.player ?? matchTeams[kickoffTeam]?.controlPlayer ?? 0;
+  const kickoffName = kickoffController ? `JUGADOR ${kickoffController}` : "CPU";
+  const status = matchState === "kickoff" ? `SAQUE: ${kickoffName} · ${kickoffController === 1 ? (kickoffTeam === 0 ? "D" : "A") : kickoffController === 2 ? (kickoffTeam === 0 ? "→" : "←") : "AUTOMÁTICO"}` : text;
   document.getElementById("controlsText").textContent = status;
 }
 
@@ -417,10 +487,11 @@ function getStatValue(character, statName) {
 
 function moveCharacter(character, team, dt) {
   const side = getSide(team);
-  const isHuman = Boolean(team.controlPlayer);
-  const keysForTeam = team.controlPlayer === 1
+  const controller = team.controllers?.[character.role] ?? team.controlPlayer ?? 0;
+  const isHuman = Boolean(controller);
+  const keysForTeam = controller === 1
     ? { up: "w", down: "s", left: "a", right: "d" }
-    : { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
+    : { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "right" };
 
   let dx = 0;
   let dy = 0;
@@ -655,10 +726,11 @@ function startKickoff(teamIndex) {
   const force = 6 + (kickStat - 5) * 1.1;
 
   let angle = 0;
-  if (team.controlPlayer) {
-    // El jugador apunta manteniendo arriba o abajo mientras prepara el saque.
-    const upKey = team.controlPlayer === 1 ? "w" : "arrowup";
-    const downKey = team.controlPlayer === 1 ? "s" : "arrowdown";
+  const kickoffController = team.controllers?.player ?? team.controlPlayer ?? 0;
+  if (kickoffController) {
+    // El jugador de campo que controla el saque puede orientar el disparo.
+    const upKey = kickoffController === 1 ? "w" : "arrowup";
+    const downKey = kickoffController === 1 ? "s" : "arrowdown";
     if (keys[upKey]) angle = -Math.PI / 6;
     else if (keys[downKey]) angle = Math.PI / 6;
   } else {
@@ -682,7 +754,7 @@ function startKickoff(teamIndex) {
 
 function updateKickoff(dt) {
   // La CPU ejecuta el saque automáticamente, ocupe el lado que ocupe.
-  if (!matchTeams[kickoffTeam]?.controlPlayer) {
+  if (!(matchTeams[kickoffTeam]?.controllers?.player ?? matchTeams[kickoffTeam]?.controlPlayer)) {
     cpuKickoffTimer += dt / 60;
     if (cpuKickoffTimer >= 1) startKickoff(kickoffTeam);
   }
@@ -890,6 +962,7 @@ function startTournamentMatch(opponent, leg) {
   matchTeams = [leftClub, rightClub].map((club, index) => {
     const team = createTeam(club, index);
     team.controlPlayer = club.folder === tournament.playerClub.folder ? 1 : 0;
+    team.controllers = { player: team.controlPlayer, goalkeeper: 0 };
     return team;
   });
   selectedTeams = [leftClub, rightClub];
@@ -1223,6 +1296,35 @@ function drawDebugHitboxes() {
   ctx.restore();
 }
 
+function drawKickoffPlayerIndicators() {
+  matchTeams.forEach(team => {
+    const assignments = team.controllers || {};
+    ["player", "goalkeeper"].forEach(role => {
+      const playerNumber = assignments[role];
+      if (!playerNumber) return;
+      const character = team[role];
+      const icon = playerIcons[playerNumber];
+      const centerX = character.x + character.width / 2;
+      const topY = character.y - 43;
+      ctx.save();
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#07152b";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(centerX, topY + 35);
+      ctx.lineTo(centerX - 10, topY + 19);
+      ctx.lineTo(centerX + 10, topY + 19);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      if (icon?.complete && icon.naturalWidth) {
+        ctx.drawImage(icon, centerX - 17, topY - 17, 34, 34);
+      }
+      ctx.restore();
+    });
+  });
+}
+
 function drawGame() {
   if (stageImage.complete && stageImage.naturalWidth) {
     ctx.drawImage(stageImage, 0, 0, WIDTH, HEIGHT);
@@ -1235,6 +1337,7 @@ function drawGame() {
     drawCharacter(team.goalkeeper);
     drawCharacter(team.player);
   });
+  if (matchState === "kickoff" && !tournamentMode) drawKickoffPlayerIndicators();
   drawBall();
   if (debugHitboxes) drawDebugHitboxes();
 }
@@ -1273,7 +1376,10 @@ document.getElementById("introStart").addEventListener("click", () => {
 document.getElementById("friendlyMode").addEventListener("click", () => {
   tournamentMode = false;
   tournament = null;
-  updateModeSelection();
+  friendlyAssignments[1] = null;
+  friendlyAssignments[2] = null;
+  friendlyJoinOrder = [];
+  renderFriendlySelection();
   showScreen("clubs");
 });
 document.getElementById("championsMode").addEventListener("click", () => {
@@ -1287,22 +1393,16 @@ document.getElementById("viewBracket").addEventListener("click", openTournamentB
 document.getElementById("bracketBack").addEventListener("click", () => {
   if (typeof bracketContinueAction === "function") bracketContinueAction();
 });
-document.getElementById("gameModeSelect").addEventListener("change", updateModeSelection);
 document.getElementById("cpuDifficultySelect").addEventListener("change", event => {
   cpuDifficulty = event.target.value;
 });
+document.querySelectorAll(".side-join").forEach(button => {
+  button.addEventListener("click", () => assignFriendlyPlayer(Number(button.dataset.player), button.dataset.side));
+});
+document.getElementById("localClubSelect").addEventListener("change", updateFriendlyClubCards);
+document.getElementById("awayClubSelect").addEventListener("change", updateFriendlyClubCards);
 
-function updateModeSelection() {
-  gameMode = document.getElementById("gameModeSelect").value;
-  document.getElementById("difficultyMode").classList.toggle("hidden", gameMode !== "cpu");
-  cpuDifficulty = document.getElementById("cpuDifficultySelect").value;
-  document.getElementById("teamTwoLabel").textContent = gameMode === "pvp" ? "JUGADOR 2" : "CPU";
-  document.getElementById("selectionHint").textContent = gameMode === "pvp"
-    ? "Jugador 1: W A S D · Jugador 2: FLECHAS"
-    : "Jugador 1: W A S D · CPU: control automático";
-}
-document.getElementById("teamOneSelect").addEventListener("change", updateClubCards);
-document.getElementById("teamTwoSelect").addEventListener("change", updateClubCards);
+
 document.getElementById("backToMenu").addEventListener("click", () => showScreen("menu"));
 document.getElementById("startMatch").addEventListener("click", beginMatch);
 document.getElementById("quitMatch").addEventListener("click", returnToMenu);
@@ -1325,10 +1425,13 @@ document.addEventListener("keydown", event => {
   if (matchState === "kickoff") {
     const kickoffSide = matchTeams[kickoffTeam];
     const attackDirection = kickoffTeam === 0 ? 1 : -1;
-    const keyForKickoff = kickoffSide.controlPlayer === 1
+    const kickoffController = kickoffSide.controllers?.player ?? kickoffSide.controlPlayer ?? 0;
+    const keyForKickoff = kickoffController === 1
       ? (attackDirection > 0 ? "d" : "a")
-      : "arrow" + (attackDirection > 0 ? "right" : "left");
-    if (event.key.toLowerCase() === keyForKickoff) {
+      : kickoffController === 2
+        ? "arrow" + (attackDirection > 0 ? "right" : "left")
+        : null;
+    if (keyForKickoff && event.key.toLowerCase() === keyForKickoff) {
       event.preventDefault();
       startKickoff(kickoffTeam);
     }
