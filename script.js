@@ -1757,11 +1757,18 @@ function drawCharacter(character) {
   const frame = sheet.frames[frameIndex];
   if (!frame) return;
 
+  // Conserva la proporción del dibujo y apoya todos los fotogramas en la misma línea de suelo.
+  const scale = Math.min(character.width / frame.sw, character.height / frame.sh);
+  const drawWidth = frame.sw * scale;
+  const drawHeight = frame.sh * scale;
+  const drawX = character.x + (character.width - drawWidth) / 2;
+  const drawY = character.y + character.height - drawHeight;
+
   // Los personajes siempre miran de frente: no se espejan al cambiar de equipo.
   ctx.drawImage(
     sheet.image,
     frame.sx, frame.sy, frame.sw, frame.sh,
-    character.x, character.y, character.width, character.height
+    drawX, drawY, drawWidth, drawHeight
   );
 }
 function drawBall() {
