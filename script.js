@@ -788,7 +788,11 @@ canvas.addEventListener("pointermove", event => {
 
 document.addEventListener("keydown", event => {
   if (matchState === "kickoff") {
-    const keyForKickoff = kickoffTeam === 0 ? "d" : "arrowleft";
+    const kickoffSide = matchTeams[kickoffTeam];
+    const attackDirection = kickoffTeam === 0 ? 1 : -1;
+    const keyForKickoff = kickoffSide.controlPlayer === 1
+      ? (attackDirection > 0 ? "d" : "a")
+      : "arrow" + (attackDirection > 0 ? "right" : "left");
     if (event.key.toLowerCase() === keyForKickoff) {
       event.preventDefault();
       startKickoff(kickoffTeam);
