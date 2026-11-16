@@ -1169,6 +1169,13 @@ function resetCompetitionSideSelection() {
   renderFriendlySideSelection();
   const match = getCompetitionCurrentMatch();
   const label = match?.round === "final" ? "GRAN FINAL" : `SEMIFINAL ${match?.semiIndex === 0 ? "1" : "2"} · ${match?.leg === 1 ? "IDA" : "VUELTA"}`;
+  const [localClub, awayClub] = getCompetitionMatchClubs(match);
+  const localInfo = document.getElementById("competitionLocalClubInfo");
+  const awayInfo = document.getElementById("competitionAwayClubInfo");
+  renderClubCard("competitionLocalClubInfo", localClub);
+  renderClubCard("competitionAwayClubInfo", awayClub);
+  localInfo.classList.remove("hidden");
+  awayInfo.classList.remove("hidden");
   document.getElementById("sideSelectionEyebrow").textContent = "UEFA CHAMPIONS LEAGUE · COMPETENCIA";
   document.getElementById("sideSelectionTitle").textContent = "Elige tu bando";
   document.querySelector("#friendlySidesScreen .friendly-instructions").textContent =
@@ -1672,6 +1679,8 @@ document.getElementById("introStart").addEventListener("click", () => {
 });
 document.getElementById("friendlyMode").addEventListener("click", () => {
   document.getElementById("sideSelectionEyebrow").textContent = "MODO AMISTOSO";
+  document.getElementById("competitionLocalClubInfo").classList.add("hidden");
+  document.getElementById("competitionAwayClubInfo").classList.add("hidden");
   document.getElementById("sideSelectionTitle").textContent = "Elige tu bando";
   document.querySelector("#friendlySidesScreen .friendly-instructions").textContent = "Muévete entre LOCAL, NEUTRAL y VISITANTE. Puedes cambiar de bando en cualquier momento antes de continuar.";
   document.querySelector("#friendlySidesScreen .selection-hint").textContent = "Jugador 1: A / D · Jugador 2: ← / → · Centro: no jugar";
