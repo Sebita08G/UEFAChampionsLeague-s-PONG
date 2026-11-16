@@ -37,6 +37,7 @@ const screens = {
   intro: document.getElementById("introScreen"),
   menu: document.getElementById("mainMenu"),
   clubs: document.getElementById("clubScreen"),
+  champions: document.getElementById("championsScreen"),
   game: document.getElementById("gameScreen")
 };
 
@@ -163,7 +164,12 @@ async function loadClubs() {
   if (clubs.length === 0) throw new Error("No se pudo cargar ningún club. Revisa la consola del navegador (F12) para ver el error concreto.");
 
   populateClubSelectors();
+  populateChampionsSelector();
   startButton.disabled = false;
+  document.getElementById("startChampions").disabled = clubs.length < 4;
+  document.getElementById("championsHint").textContent = clubs.length < 4
+    ? "Se necesitan al menos cuatro clubes para disputar la competición."
+    : `Se han cargado ${clubs.length} clubes. Elige tu equipo y dificultad.`;
   hint.textContent = failed.length
     ? `Se cargaron ${clubs.length} de ${folders.length} clubes. Fallaron: ${failed.map(item => item.reason.message).join(" | ")}`
     : `Se cargaron ${clubs.length} clubes correctamente. Jugador 1: W A S D · CPU: control automático`;
@@ -189,6 +195,23 @@ function populateClubSelectors() {
   selects[0].value = clubs[0].folder;
   selects[1].value = (clubs[1] || clubs[0]).folder;
   updateClubCards();
+}
+
+function populateChampionsSelector() {
+  const select = document.getElementById("championsClubSelect");
+  select.innerHTML = "";
+  clubs.forEach(club => {
+    const option = document.createElement("option");
+    option.value = club.folder;
+    option.textContent = club.club_name;
+    select.appendChild(option);
+  });
+  if (clubs.length) renderClubCard("championsClubCard", clubs[0]);
+}
+
+function updateChampionsClubCard() {
+  const club = clubs.find(item => item.folder === document.getElementById("championsClubSelect").value);
+  if (club) renderClubCard("championsClubCard", club);
 }
 
 function renderClubCard(containerId, club) {
@@ -852,6 +875,15 @@ document.getElementById("introStart").addEventListener("click", () => {
 document.getElementById("friendlyMode").addEventListener("click", () => {
   updateModeSelection();
   showScreen("clubs");
+});
+document.getElementById("championsMode").addEventListener("click", () => {
+  updateChampionsClubCard();
+  showScreen("champions");
+});
+document.getElementById("championsClubSelect").addEventListener("change", updateChampionsClubCard);
+document.getElementById("championsBack").addEventListener("click", () => showScreen("menu"));
+document.getElementById("startChampions").addEventListener("click", () => {
+  document.getElementById("championsHint").textContent = "La configuración está preparada. El siguiente paso es conectar el cuadro y los partidos de la competición.";
 });
 document.getElementById("gameModeSelect").addEventListener("change", updateModeSelection);
 document.getElementById("cpuDifficultySelect").addEventListener("change", event => {
