@@ -58,6 +58,17 @@ audio.missed.volume = 0.5;
 
 let clubs = [];
 let gameMode = "cpu";
+let cpuDifficulty = "professional";
+
+const CPU_DIFFICULTIES = {
+  amateur: { reactionSeconds: 0.40 },
+  professional: { reactionSeconds: 0.27 },
+  legend: { reactionSeconds: 0.20 }
+};
+
+function getCpuReactionFrames() {
+  return CPU_DIFFICULTIES[cpuDifficulty].reactionSeconds * 60;
+}
 let selectedTeams = [];
 let matchTeams = [];
 let score = [0, 0];
@@ -352,7 +363,7 @@ function moveCharacter(character, team, dt) {
     // La CPU tarda un poco en reaccionar cuando el rival golpea la pelota.
     if (character.aiObservedLastHit !== ball.lastHit) {
       character.aiObservedLastHit = ball.lastHit;
-      character.aiThinkTimer = 16; // aproximadamente 0,27 segundos a 60 FPS
+      character.aiThinkTimer = getCpuReactionFrames(); // demora según la dificultad elegida
     }
 
     character.aiThinkTimer = Math.max(0, character.aiThinkTimer - dt);
@@ -668,9 +679,14 @@ document.getElementById("friendlyMode").addEventListener("click", () => {
   showScreen("clubs");
 });
 document.getElementById("gameModeSelect").addEventListener("change", updateModeSelection);
+document.getElementById("cpuDifficultySelect").addEventListener("change", event => {
+  cpuDifficulty = event.target.value;
+});
 
 function updateModeSelection() {
   gameMode = document.getElementById("gameModeSelect").value;
+  document.getElementById("difficultyMode").classList.toggle("hidden", gameMode !== "cpu");
+  cpuDifficulty = document.getElementById("cpuDifficultySelect").value;
   document.getElementById("teamTwoLabel").textContent = gameMode === "pvp" ? "JUGADOR 2" : "CPU";
   document.getElementById("selectionHint").textContent = gameMode === "pvp"
     ? "Jugador 1: W A S D · Jugador 2: FLECHAS"
