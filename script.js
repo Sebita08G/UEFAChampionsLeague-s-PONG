@@ -3,8 +3,6 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
-const WIN_SCORE = 10;
-
 // Coordenadas provisionales del campo (canvas: 960 x 540).
 // Se ajustarán con F3 activado cuando midamos el césped del estadio.
 const FIELD = { left: 32, right: 930, top: 170, bottom: 470 };
@@ -598,10 +596,8 @@ function registerGoal(scoringTeam) {
   matchState = "goal_pause";
 
   if (extraTimeActive && extraTimeGoals[scoringTeam] >= 2) {
+    // En prórroga se mantiene la regla de muerte súbita a dos goles.
     pendingMatchFinish = { winner: scoringTeam, title: "¡VICTORIA EN LA PRÓRROGA!" };
-  } else if (!extraTimeActive && score[scoringTeam] >= WIN_SCORE) {
-    // Se conserva la pausa visual antes de mostrar el resultado final.
-    pendingMatchFinish = { winner: scoringTeam, title: "¡VICTORIA!" };
   }
 }
 
@@ -955,9 +951,9 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
 
   if (tournament.round === "semifinal" && tournament.extraTimeForSemifinal) {
     const playerWon = extraTimeGoals[playerSide] > extraTimeGoals[1 - playerSide];
-    tournament.aggregatePlayer += extraTimeGoals[playerSide];
-    tournament.aggregateOpponent += extraTimeGoals[1 - playerSide];
-    tournament.playerSemi.secondLeg = [playerGoals, opponentGoals];
+    const regularPlayerGoals = score[playerSide];
+    const regularOpponentGoals = score[1 - playerSide];
+    tournament.playerSemi.secondLeg = [regularPlayerGoals, regularOpponentGoals];
     tournament.playerSemi.aggregatePlayer = tournament.aggregatePlayer;
     tournament.playerSemi.aggregateOpponent = tournament.aggregateOpponent;
     tournament.playerSemi.extraTime = [...extraTimeGoals];
@@ -989,16 +985,28 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     tournament.playerSemi.aggregatePlayer = tournament.aggregatePlayer;
     tournament.playerSemi.aggregateOpponent = tournament.aggregateOpponent;
 
-    if (tournament.aggregatePlayer === tournament.aggregateOpponent) {
+    const firstLegPoints = tournament.playerSemi.firstLeg[0] > tournament.playerSemi.firstLeg[1] ? 3
+      : tournament.playerSemi.firstLeg[0] === tournament.playerSemi.firstLeg[1] ? 1 : 0;
+    const secondLegPoints = playerGoals > opponentGoals ? 3
+      : playerGoals === opponentGoals ? 1 : 0;
+    const playerPoints = firstLegPoints + secondLegPoints;
+    const opponentPoints = 6 - playerPoints;
+    const playerGoalDifference = tournament.aggregatePlayer - tournament.aggregateOpponent;
+
+    tournament.playerSemi.playerPoints = playerPoints;
+    tournament.playerSemi.opponentPoints = opponentPoints;
+
+    if (playerPoints === opponentPoints && playerGoalDifference === 0) {
       tournament.extraTimeForSemifinal = true;
-      startExtraTime("La eliminatoria está empatada en el global. ¡Prórroga! El primer equipo que marque 2 goles se clasifica.");
+      startExtraTime("La eliminatoria está igualada en puntos y diferencia de goles. ¡Prórroga! El primero en marcar 2 goles se clasifica.");
       return;
     }
-    if (tournament.aggregatePlayer < tournament.aggregateOpponent) {
+    if (playerPoints < opponentPoints ||
+        (playerPoints === opponentPoints && playerGoalDifference < 0)) {
       tournament.playerSemi.winner = tournament.semifinalOpponent;
       showTournamentBracket(
         "ELIMINADO EN SEMIFINALES",
-        `La eliminatoria termina ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent} en el global. ${tournament.semifinalOpponent.club_name} se clasifica para la final.`,
+        `Puntos de la eliminatoria: ${playerPoints} - ${opponentPoints}. Diferencia de goles: ${playerGoalDifference}. ${tournament.semifinalOpponent.club_name} se clasifica para la final.`,
         "VOLVER AL MENÚ",
         returnToMenu
       );
