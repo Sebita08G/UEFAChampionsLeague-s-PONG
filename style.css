@@ -489,3 +489,8 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
   .side-table-cell strong { font-size: 12px; }
   .side-icon { width: 34px; height: 34px; }
 }
+
+.champions-mode-actions { justify-content: center; }
+.champions-mode-actions button { min-width: 190px; }
+#competitionSetupScreen .champions-options { max-width: 520px; margin: 22px auto; }
+.bracket-match.completed { border-color: rgba(92,190,142,.55); }
