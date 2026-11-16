@@ -962,6 +962,11 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
 
   if (tournament.round === "semifinal" && tournament.extraTimeForSemifinal) {
     const playerWon = extraTimeGoals[playerSide] > extraTimeGoals[1 - playerSide];
+    tournament.aggregatePlayer += extraTimeGoals[playerSide];
+    tournament.aggregateOpponent += extraTimeGoals[1 - playerSide];
+    tournament.playerSemi.secondLeg = [playerGoals, opponentGoals];
+    tournament.playerSemi.aggregatePlayer = tournament.aggregatePlayer;
+    tournament.playerSemi.aggregateOpponent = tournament.aggregateOpponent;
     tournament.playerSemi.extraTime = [...extraTimeGoals];
     tournament.playerSemi.winner = playerWon ? tournament.playerClub : tournament.semifinalOpponent;
     tournament.extraTimeForSemifinal = false;
