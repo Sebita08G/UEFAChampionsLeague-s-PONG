@@ -201,3 +201,25 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
   font-size: 14px;
 }
 .bracket-actions .primary-button { min-width: min(320px, 100%); }
+
+/* Selector de bandos estilo FIFA/FC */
+.friendly-panel { width: min(1120px, 98vw); }
+.friendly-instructions { max-width: 760px; margin: -12px auto 22px; color: #c5d6ee; line-height: 1.5; font-size: 13px; }
+.friendly-sides { grid-template-columns: minmax(0,1fr) 44px minmax(0,1fr); align-items: start; gap: 16px; }
+.friendly-side { padding: 18px; background: rgba(255,255,255,.045); border: 1px solid rgba(150,190,245,.2); border-radius: 12px; }
+.friendly-side h2 { font-size: 17px; letter-spacing: .2em; }
+.friendly-side .club-card { height: 150px; }
+.side-player-slots { display: grid; gap: 9px; margin-top: 16px; }
+.side-player-slot { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 8px; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; }
+.side-player-slot img { width: 36px; height: 36px; object-fit: contain; }
+.side-player-slot span { text-align: left; color: #dbeaff; font-size: 11px; font-weight: 700; }
+.side-join { min-height: 32px; padding: 7px 9px; border: 1px solid rgba(150,190,245,.28); border-radius: 5px; color: #dceaff; background: rgba(255,255,255,.08); font-size: 9px; font-weight: 900; letter-spacing: .04em; }
+.side-join.selected { color: #fff; background: #0878ff; border-color: #70b5ff; }
+.friendly-difficulty { margin: 0 0 20px; }
+@media (max-width: 760px) {
+  .friendly-sides { grid-template-columns: 1fr; }
+  .friendly-side { padding: 12px; }
+  .side-player-slot { grid-template-columns: 34px minmax(0,1fr); }
+  .side-join { grid-column: 1 / -1; width: 100%; }
+  .friendly-sides .versus { padding: 0; }
+}
