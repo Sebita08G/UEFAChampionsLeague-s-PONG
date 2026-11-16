@@ -494,3 +494,39 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
 .champions-mode-actions button { min-width: 190px; }
 #competitionSetupScreen .champions-options { max-width: 520px; margin: 22px auto; }
 .bracket-match.completed { border-color: rgba(92,190,142,.55); }
+
+/* Escudos y nombres de los clubes en el selector de bandos de Competencia. */
+.competition-side-club-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  max-width: 150px;
+  min-height: 76px;
+  margin-top: 7px;
+  padding: 4px 5px;
+  text-align: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.competition-side-club-card img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+.competition-side-club-card strong {
+  max-width: 100%;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .competition-side-club-card { min-height: 65px; gap: 3px; }
+  .competition-side-club-card img { width: 32px; height: 32px; }
+  .competition-side-club-card strong { font-size: 9px; }
+}
