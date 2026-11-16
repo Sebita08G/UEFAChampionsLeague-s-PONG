@@ -212,7 +212,10 @@ function makeCharacter(club, role, teamIndex) {
     height: role === "goalkeeper" ? 76 : 82,
     hitWidth: 40,
     hitHeight: 40,
-    direction: teamIndex === 0 ? 1 : -1
+    direction: teamIndex === 0 ? 1 : -1,
+    aiTargetY: HEIGHT / 2,
+    aiThinkTimer: 0,
+    aiObservedLastHit: null
   };
 }
 
@@ -346,14 +349,25 @@ function moveCharacter(character, team, dt) {
       if (keys[keysForTeam.right]) dx += 1;
     }
   } else {
-    const targetY = ball.y - character.height / 2;
+    // La CPU tarda un poco en reaccionar cuando el rival golpea la pelota.
+    if (character.aiObservedLastHit !== ball.lastHit) {
+      character.aiObservedLastHit = ball.lastHit;
+      character.aiThinkTimer = 16; // aproximadamente 0,27 segundos a 60 FPS
+    }
+
+    character.aiThinkTimer = Math.max(0, character.aiThinkTimer - dt);
+    if (character.aiThinkTimer === 0) {
+      character.aiTargetY = ball.y - character.height / 2;
+      character.aiThinkTimer = 5; // actualiza su objetivo unas 12 veces por segundo
+    }
+
+    const targetY = character.aiTargetY;
     const difference = targetY - character.y;
-    const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? 0.95 : 0.78);
-    if (Math.abs(difference) > 4) dy = Math.sign(difference);
+    const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? 0.82 : 0.68);
+    if (Math.abs(difference) > 5) dy = Math.sign(difference);
     if (character.role === "player") {
-      const homeX = WIDTH - 185 - character.width;
       const targetX = Math.max(WIDTH * 0.55, Math.min(WIDTH * 0.82, ball.x + 85));
-      character.x += Math.sign(targetX - character.x) * Math.min(Math.abs(targetX - character.x), cpuSpeed * 0.65);
+      character.x += Math.sign(targetX - character.x) * Math.min(Math.abs(targetX - character.x), cpuSpeed * 0.55);
     }
     character.y += dy * cpuSpeed;
   }
@@ -394,22 +408,25 @@ function collideWithCharacter(character, team) {
   if ((team.index === 0 && ball.vx >= 0) || (team.index === 1 && ball.vx <= 0)) return false;
 
   const centerY = box.y + box.height / 2;
-  // -1 = golpe en la parte superior; +1 = golpe en la parte inferior.
-  const impact = Math.max(-1, Math.min(1, (ball.y - centerY) / (box.height / 2)));
+  // El punto de contacto determina el ángulo: centro = recto; bordes = diagonal.
+  const impact = Math.max(-1, Math.min(1,
+    (ball.y - centerY) / (box.height / 2 + ball.radius)
+  ));
   const kickStat = getStatValue(character, "kick");
-  // Potencia horizontal de la patada: 6 con stat 5 y 11.5 con stat 10.
+  // La estadística kick controla la velocidad total de salida (6 a 11,5).
   const force = 6 + (kickStat - 5) * 1.1;
   const direction = team.index === 0 ? 1 : -1;
-  const verticalInfluence = Math.abs(impact);
+  const angle = impact * (Math.PI / 4);
 
+  // Separa la pelota del personaje para evitar que quede atrapada dentro de su hitbox.
   ball.x = team.index === 0
     ? box.x + box.width + ball.radius + 1
     : box.x - ball.radius - 1;
 
-  // En el centro sale más recta; cerca de los bordes superior/inferior
-  // gana componente vertical y reduce algo la velocidad horizontal.
-  ball.vx = direction * Math.min(12, force * (1 - verticalInfluence * 0.28));
-  ball.vy = impact * 8.2 + (Math.random() - 0.5) * 0.5;
+  // Conserva una pequeña parte del movimiento vertical previo para dar continuidad al rebote.
+  const incomingSpin = ball.vy * 0.12;
+  ball.vx = direction * force * Math.cos(angle);
+  ball.vy = force * Math.sin(angle) + incomingSpin;
   ball.lastHit = team.index;
   playSound("kick");
   return true;
