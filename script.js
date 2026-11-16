@@ -182,6 +182,7 @@ const playerIcons = {
 };
 let score = [0, 0];
 let remainingTime = HALF_SECONDS;
+let clockRunning = false;
 let currentHalf = 1;
 let extraTimeActive = false;
 let extraTimeGoals = [0, 0];
@@ -538,6 +539,7 @@ function beginMatch() {
   });
   score = [0, 0];
   remainingTime = HALF_SECONDS;
+  clockRunning = false;
   currentHalf = 1;
   extraTimeActive = false;
   extraTimeGoals = [0, 0];
@@ -950,6 +952,7 @@ function startKickoff(teamIndex) {
   ball.vy = force * Math.sin(angle);
   ball.lastHit = teamIndex;
   setCharacterAnimation(team.player, "kick", 0.55);
+  clockRunning = true;
   matchState = "playing";
   team.player.aiObservedLastHit = teamIndex;
   team.goalkeeper.aiObservedLastHit = teamIndex;
@@ -967,6 +970,28 @@ function updateKickoff(dt) {
 }
 
 function updateMatch(dt) {
+  // El reloj reglamentario sigue avanzando durante goles y saques intermedios.
+  // Solo permanece detenido antes del saque inicial y durante el descanso.
+  if (clockRunning && !extraTimeActive &&
+      ["playing", "kickoff", "goal_pause"].includes(matchState)) {
+    remainingTime = Math.max(0, remainingTime - dt / 60);
+    updateTimerDisplay();
+
+    if (remainingTime <= 0) {
+      clockRunning = false;
+      if (currentHalf === 1) {
+        beginSecondHalf();
+      } else if (score[0] === score[1] && tournamentMode && tournament.round === "final") {
+        startExtraTime("La final ha terminado empatada. ¡Comienza la prórroga! El primero en marcar 2 goles será campeón.");
+      } else if (score[0] === score[1]) {
+        finishMatch(null, "¡EMPATE!");
+      } else {
+        finishMatch(score[0] > score[1] ? 0 : 1, "¡PARTIDO FINALIZADO!");
+      }
+      return;
+    }
+  }
+
   if (matchState === "goal_pause") {
     updateGoalPause(dt);
     return;
@@ -977,29 +1002,16 @@ function updateMatch(dt) {
   }
   if (matchState !== "playing") return;
 
-  if (!extraTimeActive) remainingTime = Math.max(0, remainingTime - dt / 60);
-  updateTimerDisplay();
-
   matchTeams.forEach(team => {
     moveCharacter(team.goalkeeper, team, dt);
     moveCharacter(team.player, team, dt);
   });
   updateBall(dt);
 
-  if (remainingTime <= 0) {
-    if (currentHalf === 1) {
-      beginSecondHalf();
-    } else if (score[0] === score[1] && tournamentMode && tournament.round === "final") {
-      startExtraTime("La final ha terminado empatada. ¡Comienza la prórroga! El primero en marcar 2 goles será campeón.");
-    } else if (score[0] === score[1]) {
-      finishMatch(null, "¡EMPATE!");
-    } else {
-      finishMatch(score[0] > score[1] ? 0 : 1, "¡PARTIDO FINALIZADO!");
-    }
-  }
 }
 
 function startExtraTime(message) {
+  clockRunning = false;
   extraTimeActive = true;
   extraTimeGoals = [0, 0];
   currentHalf = 3;
@@ -1029,6 +1041,7 @@ function startExtraTime(message) {
 function beginSecondHalf() {
   currentHalf = 2;
   remainingTime = HALF_SECONDS;
+  clockRunning = false;
   matchTeams.reverse();
   score.reverse();
   matchTeams.forEach((team, index) => { team.index = index; });
@@ -1037,6 +1050,7 @@ function beginSecondHalf() {
   updateHud();
   showMatchOverlay("DESCANSO", "Cambio de campo. ¡Comienza la segunda parte!", "EMPEZAR 2.ª PARTE", () => {
     document.getElementById("matchOverlay").classList.add("hidden");
+    clockRunning = true;
     matchState = "playing";
     lastFrame = performance.now();
     updateControlsText();
@@ -1058,6 +1072,7 @@ function finishMatch(winnerIndex, title) {
 
   // Congela el partido durante todo el silbato final y muestra el resultado emocional.
   matchState = "final_whistle";
+  clockRunning = false;
   keys = {};
   if (winnerIndex === 0 || winnerIndex === 1) {
     setTeamAnimation(winnerIndex, "celebrate");
@@ -1180,6 +1195,7 @@ function startTournamentMatch(opponent, leg) {
   selectedTeams = [leftClub, rightClub];
   score = [0, 0];
   remainingTime = HALF_SECONDS;
+  clockRunning = false;
   currentHalf = 1;
   extraTimeActive = false;
   extraTimeGoals = [0, 0];
@@ -1461,6 +1477,7 @@ function launchCompetitionMatch(leftClub, rightClub) {
   selectedTeams = [leftClub, rightClub];
   score = [0, 0];
   remainingTime = HALF_SECONDS;
+  clockRunning = false;
   currentHalf = 1;
   extraTimeActive = false;
   extraTimeGoals = [0, 0];
