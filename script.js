@@ -383,12 +383,14 @@ function updateHud() {
   document.getElementById("rightScore").textContent = score[1] + (extraTimeActive ? extraTimeGoals[1] : 0);
   document.getElementById("halfLabel").textContent =
     currentHalf === 1 ? "1.ª PARTE" : currentHalf === 2 ? "2.ª PARTE" : "PRÓRROGA";
-  document.getElementById("leftScore").textContent = score[0] + (extraTimeActive ? extraTimeGoals[0] : 0);
-  document.getElementById("rightScore").textContent = score[1] + (extraTimeActive ? extraTimeGoals[1] : 0);
   updateTimerDisplay();
 }
 
 function updateTimerDisplay() {
+  if (extraTimeActive) {
+    document.getElementById("matchTimer").textContent = "∞";
+    return;
+  }
   const minutes = Math.floor(remainingTime / 60);
   const seconds = Math.floor(remainingTime % 60);
   document.getElementById("matchTimer").textContent =
@@ -713,8 +715,16 @@ function updateMatch(dt) {
   if (remainingTime <= 0) {
     if (currentHalf === 1) {
       beginSecondHalf();
-    } else if (score[0] === score[1] && tournamentMode) {
-      startExtraTime("El partido ha terminado empatado. ¡Comienza la prórroga! El primero en marcar 2 goles gana.");
+    } else if (
+      score[0] === score[1] &&
+      tournamentMode &&
+      (tournament.round === "final" || (tournament.round === "semifinal" && tournament.leg === 2))
+    ) {
+      startExtraTime(
+        tournament.round === "final"
+          ? "La final ha terminado empatada. ¡Comienza la prórroga! El primero en marcar 2 goles será campeón."
+          : "La eliminatoria ha terminado empatada en el global. ¡Comienza la prórroga! El primero en marcar 2 goles se clasifica."
+      );
     } else if (score[0] === score[1]) {
       finishMatch(null, "¡EMPATE!");
     } else {
