@@ -35,6 +35,7 @@ const screens = {
   intro: document.getElementById("introScreen"),
   menu: document.getElementById("mainMenu"),
   clubs: document.getElementById("clubScreen"),
+  friendlySides: document.getElementById("friendlySidesScreen"),
   champions: document.getElementById("championsScreen"),
   bracket: document.getElementById("bracketScreen"),
   game: document.getElementById("gameScreen")
@@ -81,6 +82,7 @@ let selectedTeams = [];
 let matchTeams = [];
 const friendlyAssignments = { 1: null, 2: null };
 let friendlyJoinOrder = [];
+const friendlySidePositions = { 1: 0, 2: 0 }; // -1 local, 0 neutral, 1 visitante
 const playerIcons = {
   1: loadImage("images/menu/player_1.png"),
   2: loadImage("images/menu/player_2.png")
@@ -218,41 +220,54 @@ function updateFriendlyClubCards() {
 
 function renderFriendlySelection() {
   updateFriendlyClubCards();
-  [1, 2].forEach(player => {
-    const side = friendlyAssignments[player];
-    ["local", "away"].forEach(candidate => {
-      const button = document.querySelector(`.side-join[data-player="${player}"][data-side="${candidate}"]`);
-      const label = document.getElementById(`${candidate}Player${player}`);
-      const selected = side === candidate;
-      button.classList.toggle("selected", selected);
-      button.textContent = selected ? `JUGADOR ${player} · SELECCIONADO` : `UNIR JUGADOR ${player}`;
-      label.textContent = selected ? `Jugador ${player} preparado` : "Sin seleccionar";
-    });
-  });
-  const joined = [1, 2].filter(player => friendlyAssignments[player]);
+  const localPlayers = [1, 2].filter(player => friendlyAssignments[player] === "local");
+  const awayPlayers = [1, 2].filter(player => friendlyAssignments[player] === "away");
   const hint = document.getElementById("selectionHint");
-  if (!joined.length) {
-    hint.textContent = "Elige un bando con Jugador 1 o Jugador 2 para comenzar.";
+  if (!localPlayers.length && !awayPlayers.length) {
+    hint.textContent = "Al menos un jugador debe elegir un bando. El otro equipo lo controlará la CPU.";
+  } else if (localPlayers.length === 2 || awayPlayers.length === 2) {
+    hint.textContent = "Ambos jugadores jugarán juntos: el primero que se unió controlará al jugador de campo y el segundo al portero.";
+  } else if (localPlayers.length && awayPlayers.length) {
+    hint.textContent = "Cada jugador controlará su propio equipo. El partido será Jugador contra Jugador.";
   } else {
-    const localPlayers = joined.filter(player => friendlyAssignments[player] === "local");
-    const awayPlayers = joined.filter(player => friendlyAssignments[player] === "away");
-    const roleText = localPlayers.length === 2 || awayPlayers.length === 2
-      ? "El primero en unirse será el jugador de campo y el segundo controlará al portero."
-      : "Cada jugador controlará al jugador de campo de su equipo.";
-    hint.textContent = `${localPlayers.length} jugador(es) en Local · ${awayPlayers.length} en Visitante. ${roleText}`;
+    const player = localPlayers[0] || awayPlayers[0];
+    hint.textContent = `Jugador ${player} jugará con el equipo elegido contra la CPU. Si el Jugador 1 no participa, el Jugador 2 controlará todo su equipo.`;
   }
 }
 
-function assignFriendlyPlayer(player, side) {
-  if (friendlyAssignments[player] === side) {
+function setFriendlySide(player, position) {
+  friendlySidePositions[player] = Math.max(-1, Math.min(1, position));
+  const side = position < 0 ? "local" : position > 0 ? "away" : null;
+  const previous = friendlyAssignments[player];
+  if (!side) {
     friendlyAssignments[player] = null;
     friendlyJoinOrder = friendlyJoinOrder.filter(item => item !== player);
-  } else {
+  } else if (previous !== side) {
     friendlyAssignments[player] = side;
     friendlyJoinOrder = friendlyJoinOrder.filter(item => item !== player);
     friendlyJoinOrder.push(player);
   }
+  renderFriendlySideSelection();
+}
+
+function renderFriendlySideSelection() {
+  [1, 2].forEach(player => {
+    const position = friendlySidePositions[player];
+    const marker = document.getElementById(`player${player}SideMarker`);
+    const label = document.getElementById(`player${player}SideLabel`);
+    marker.style.left = position < 0 ? "16.66%" : position > 0 ? "83.33%" : "50%";
+    label.textContent = position < 0 ? "LOCAL" : position > 0 ? "VISITANTE" : "NEUTRAL";
+    marker.classList.toggle("at-local", position < 0);
+    marker.classList.toggle("at-away", position > 0);
+  });
+}
+
+function continueToFriendlyClubs() {
+  if (![1, 2].some(player => friendlyAssignments[player])) {
+    return;
+  }
   renderFriendlySelection();
+  showScreen("clubs");
 }
 
 function populateChampionsSelector() {
@@ -393,7 +408,7 @@ function beginMatch() {
     document.getElementById("selectionHint").textContent = "Al menos un jugador debe unirse al equipo local o visitante.";
     return;
   }
-  gameMode = [1, 2].every(player => friendlyAssignments[player]) ? "pvp" : "cpu";
+  gameMode = friendlyAssignments[1] && friendlyAssignments[2] && friendlyAssignments[1] !== friendlyAssignments[2] ? "pvp" : "cpu";
   cpuDifficulty = document.getElementById("cpuDifficultySelect").value;
   matchTeams = selectedTeams.map((club, index) => {
     const team = createTeam(club, index);
@@ -861,13 +876,13 @@ function finishMatch(winnerIndex, title) {
   audio.finalWhistle.pause();
   audio.finalWhistle.currentTime = 0;
 
-  const playerSide = matchTeams.findIndex(team => team.controlPlayer === 1);
+  const playerSide = matchTeams.findIndex(team => Object.values(team.controllers || {}).some(Boolean) || team.controlPlayer);
   const resultTitle = winnerIndex === null
     ? "¡EMPATE!"
     : tournamentMode
       ? (winnerIndex === playerSide ? "¡VICTORIA!" : "¡DERROTA!")
       : gameMode === "cpu"
-        ? (winnerIndex === 0 ? "¡VICTORIA!" : "¡DERROTA!")
+        ? (winnerIndex === playerSide ? "¡VICTORIA!" : "¡DERROTA!")
         : (title || "¡PARTIDO FINALIZADO!");
   const finalScore = score.map((goals, index) => goals + (extraTimeActive ? extraTimeGoals[index] : 0));
   const message = winnerIndex === null
@@ -1379,8 +1394,15 @@ document.getElementById("friendlyMode").addEventListener("click", () => {
   friendlyAssignments[1] = null;
   friendlyAssignments[2] = null;
   friendlyJoinOrder = [];
-  renderFriendlySelection();
-  showScreen("clubs");
+  friendlySidePositions[1] = 0;
+  friendlySidePositions[2] = 0;
+  renderFriendlySideSelection();
+  showScreen("friendlySides");
+});
+document.getElementById("friendlySidesContinue").addEventListener("click", continueToFriendlyClubs);
+document.getElementById("backToSides").addEventListener("click", () => {
+  renderFriendlySideSelection();
+  showScreen("friendlySides");
 });
 document.getElementById("championsMode").addEventListener("click", () => {
   updateChampionsClubCard();
@@ -1417,6 +1439,30 @@ canvas.addEventListener("pointermove", event => {
 });
 
 document.addEventListener("keydown", event => {
+  if (!screens.friendlySides.classList.contains("hidden")) {
+    const key = event.key.toLowerCase();
+    if (key === "a" || key === "d") {
+      event.preventDefault();
+      setFriendlySide(1, friendlySidePositions[1] + (key === "a" ? -1 : 1));
+      return;
+    }
+    if (key === "arrowleft" || key === "arrowright") {
+      event.preventDefault();
+      setFriendlySide(2, friendlySidePositions[2] + (key === "arrowleft" ? -1 : 1));
+      return;
+    }
+    if (key === "enter") {
+      event.preventDefault();
+      continueToFriendlyClubs();
+      return;
+    }
+    if (key === "escape") {
+      event.preventDefault();
+      showScreen("menu");
+      return;
+    }
+    return;
+  }
   // Durante el silbato final no se aceptan controles del partido.
   if (matchState === "final_whistle") {
     event.preventDefault();
