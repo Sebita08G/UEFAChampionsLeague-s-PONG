@@ -1170,18 +1170,30 @@ function resetCompetitionSideSelection() {
   const match = getCompetitionCurrentMatch();
   const label = match?.round === "final" ? "GRAN FINAL" : `SEMIFINAL ${match?.semiIndex === 0 ? "1" : "2"} · ${match?.leg === 1 ? "IDA" : "VUELTA"}`;
   const [localClub, awayClub] = getCompetitionMatchClubs(match);
-  const localInfo = document.getElementById("competitionLocalClubInfo");
-  const awayInfo = document.getElementById("competitionAwayClubInfo");
-  renderClubCard("competitionLocalClubInfo", localClub);
-  renderClubCard("competitionAwayClubInfo", awayClub);
-  localInfo.classList.remove("hidden");
-  awayInfo.classList.remove("hidden");
+  renderCompetitionSideShield("competitionLocalClubInfo", localClub);
+  renderCompetitionSideShield("competitionAwayClubInfo", awayClub);
   document.getElementById("sideSelectionEyebrow").textContent = "UEFA CHAMPIONS LEAGUE · COMPETENCIA";
   document.getElementById("sideSelectionTitle").textContent = "Elige tu bando";
   document.querySelector("#friendlySidesScreen .friendly-instructions").textContent =
     `${label}. Elige LOCAL, NEUTRAL o VISITANTE. Puedes cambiar de equipo en el siguiente partido.`;
   document.querySelector("#friendlySidesScreen .selection-hint").textContent =
     "Jugador 1: A / D · Jugador 2: ← / → · Centro: no participar (simulación CPU)";
+}
+function renderCompetitionSideShield(containerId, club) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  container.classList.remove("hidden");
+  if (!club) return;
+
+  const shield = document.createElement("img");
+  shield.src = new URL(club.club_shield, PROJECT_BASE).href;
+  shield.alt = `Escudo de ${club.club_name}`;
+  shield.onerror = () => {
+    shield.alt = `Escudo no disponible: ${club.club_name}`;
+    shield.classList.add("shield-error");
+    console.error(`No se pudo cargar el escudo de ${club.club_name}:`, shield.src);
+  };
+  container.appendChild(shield);
 }
 function getCompetitionCurrentMatch() {
   if (!tournament || tournament.kind !== "competition") return null;
