@@ -34,21 +34,27 @@
         <p class="eyebrow">MODO AMISTOSO</p>
         <h1>Elige tu bando</h1>
         <p class="friendly-instructions">Muévete entre LOCAL, NEUTRAL y VISITANTE. Puedes cambiar de bando en cualquier momento antes de continuar.</p>
-        <div class="side-selection-pitch">
-          <div class="side-zone local-zone"><strong>LOCAL</strong><span>Equipo izquierdo</span></div>
-          <div class="side-zone neutral-zone"><strong>NEUTRAL</strong><span>No participa</span></div>
-          <div class="side-zone away-zone"><strong>VISITANTE</strong><span>Equipo derecho</span></div>
-          <div class="side-player-row" id="player1SideRow">
-            <img src="images/menu/player_1.png" alt="Jugador 1"><strong>JUGADOR 1</strong>
-            <div class="side-position-track"><span class="side-position-marker" id="player1SideMarker">J1</span></div>
-            <span class="side-position-label" id="player1SideLabel">NEUTRAL</span>
-            <small>A / D</small>
+        <div class="side-selection-pitch book-layout">
+          <div class="book-page local-page">
+            <strong>LOCAL</strong>
+            <span>Equipo de la izquierda</span>
           </div>
-          <div class="side-player-row" id="player2SideRow">
-            <img src="images/menu/player_2.png" alt="Jugador 2"><strong>JUGADOR 2</strong>
-            <div class="side-position-track"><span class="side-position-marker player-two-marker" id="player2SideMarker">J2</span></div>
-            <span class="side-position-label" id="player2SideLabel">NEUTRAL</span>
-            <small>← / →</small>
+          <div class="book-spine" aria-hidden="true"></div>
+          <div class="book-page away-page">
+            <strong>VISITANTE</strong>
+            <span>Equipo de la derecha</span>
+          </div>
+          <div class="book-player-track">
+            <span class="side-position-marker player-one-marker" id="player1SideMarker">
+              <img src="images/menu/player_1.png" alt=""><small>J1</small>
+            </span>
+            <span class="side-position-marker player-two-marker" id="player2SideMarker">
+              <img src="images/menu/player_2.png" alt=""><small>J2</small>
+            </span>
+          </div>
+          <div class="book-position-labels">
+            <span id="player1SideLabel">NEUTRAL</span>
+            <span id="player2SideLabel">NEUTRAL</span>
           </div>
         </div>
         <p class="selection-hint">Jugador 1: A / D · Jugador 2: ← / → · Centro: no jugar</p>
