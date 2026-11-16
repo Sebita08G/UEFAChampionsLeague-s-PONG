@@ -860,6 +860,7 @@ function startTournamentMatch(opponent, leg) {
   updateHud();
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
+  document.getElementById("viewBracket").classList.add("hidden");
   showScreen("game");
   startMatchMusic();
   lastFrame = performance.now();
@@ -1007,10 +1008,11 @@ function renderTournamentBracket() {
     "simulated"
   );
   const finalWinner = tournament.finalResult?.winner || null;
+  const finalParticipantsReady = tournament.round === "final" || Boolean(tournament.finalResult);
   const finalCard = bracketMatchCard(
     "FINAL · PARTIDO ÚNICO",
-    playerWinner || tournament.playerClub,
-    cpuWinner,
+    finalParticipantsReady ? (playerWinner || tournament.playerClub) : null,
+    finalParticipantsReady ? cpuWinner : null,
     finalLines,
     finalWinner,
     tournament.round === "final" ? "current" : ""
