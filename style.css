@@ -61,7 +61,16 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
 .primary-button { color: white; background: linear-gradient(110deg, #0878ff, #1742c5); box-shadow: 0 7px 22px rgba(0, 92, 255, .3); }
 .secondary-button { color: #e9f2ff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); }
 .primary-button:hover, .secondary-button:hover { transform: translateY(-2px); filter: brightness(1.15); }
-#friendlyMode { min-width: 250px; font-size: 18px; }
+#friendlyMode, #championsMode { min-width: 250px; font-size: 18px; }
+.menu-mode-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; }
+.champions-button { background: linear-gradient(110deg, #173b86, #071a43); border: 1px solid rgba(190,215,255,.45); }
+.champions-setup { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 28px; text-align: left; }
+.champions-setup .club-picker h2 { text-align: center; }
+.champions-options { display: flex; flex-direction: column; gap: 12px; }
+.champions-options label { color: #c5d6ee; font-size: 11px; font-weight: 900; letter-spacing: .12em; }
+.champions-options select { width: 100%; padding: 12px; color: white; background: #10294b; border: 1px solid rgba(160,200,255,.35); border-radius: 7px; }
+.champions-options p { margin: 0; color: #d5e5ff; font-size: 14px; }
+.champions-options .champions-note { color: #9bb7da; font-size: 12px; line-height: 1.5; }
 .menu-description { margin: 18px 0 0; color: #c5d6ee; }
 .opponent-mode { display: flex; justify-content: center; align-items: center; gap: 14px; margin: -12px 0 24px; }
 .opponent-mode label { color: #c5d6ee; font-size: 11px; font-weight: 900; letter-spacing: .12em; }
@@ -119,7 +128,8 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
 .game-footer { width: min(1100px, 100%); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #d3e4ff; font-size: 12px; }
 .game-footer .secondary-button { min-height: 38px; padding: 9px 16px; font-size: 11px; }
 @media (max-width: 650px) {
-  .club-selection-grid { grid-template-columns: 1fr; gap: 12px; }
+  .club-selection-grid, .champions-setup { grid-template-columns: 1fr; gap: 12px; }
+  .menu-mode-buttons { flex-direction: column; align-items: center; }
   .opponent-mode { flex-direction: column; gap: 8px; }
   .club-card { height: 130px; }
   .club-card img { width: 65px; height: 65px; }
