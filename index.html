@@ -35,9 +35,15 @@
         <h1 id="sideSelectionTitle">Elige tu bando</h1>
         <p class="friendly-instructions">Muévete entre LOCAL, NEUTRAL y VISITANTE. Puedes cambiar de bando en cualquier momento antes de continuar.</p>
         <div class="side-selection-pitch simple-side-table">
-          <div class="side-table-cell local-cell"><strong>LOCAL</strong></div>
+          <div class="side-table-cell local-cell">
+            <strong>LOCAL</strong>
+            <div id="competitionLocalClubInfo" class="competition-side-club-card hidden"></div>
+          </div>
           <div class="side-table-cell neutral-cell"><strong>—</strong></div>
-          <div class="side-table-cell away-cell"><strong>VISITANTE</strong></div>
+          <div class="side-table-cell away-cell">
+            <strong>VISITANTE</strong>
+            <div id="competitionAwayClubInfo" class="competition-side-club-card hidden"></div>
+          </div>
           <img class="side-icon player-one-marker" id="player1SideMarker" src="images/menu/player_1.png" alt="Jugador 1">
           <img class="side-icon player-two-marker" id="player2SideMarker" src="images/menu/player_2.png" alt="Jugador 2">
         </div>
