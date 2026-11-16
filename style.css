@@ -530,3 +530,40 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
   .competition-side-club-card img { width: 32px; height: 32px; }
   .competition-side-club-card strong { font-size: 9px; }
 }
+
+
+/* Escudos de local y visitante como marca de agua en el selector de bandos. */
+.side-table-cell { position: relative; isolation: isolate; }
+.side-table-cell > strong { position: relative; z-index: 1; }
+.competition-side-club-card {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+.competition-side-club-card img {
+  display: block;
+  width: clamp(88px, 15vw, 142px);
+  height: clamp(88px, 15vw, 142px);
+  object-fit: contain;
+  opacity: .22;
+  filter: saturate(.85);
+}
+.competition-side-club-card strong { display: none; }
+.side-icon { z-index: 2; }
+@media (max-width: 520px) {
+  .competition-side-club-card img {
+    width: 88px;
+    height: 88px;
+    opacity: .2;
+  }
+}
