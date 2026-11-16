@@ -223,3 +223,85 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
   .side-join { grid-column: 1 / -1; width: 100%; }
   .friendly-sides .versus { padding: 0; }
 }
+
+/* Selector de bandos independiente, con tres posiciones por jugador */
+.side-selection-panel { width: min(980px, 96vw); }
+.side-selection-pitch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  margin: 28px 0 18px;
+  padding: 18px;
+  overflow: hidden;
+  border: 2px solid rgba(220,238,255,.65);
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(8,82,164,.30) 0 33.333%, rgba(255,255,255,.07) 33.333% 66.666%, rgba(8,82,164,.30) 66.666% 100%);
+}
+.side-zone {
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px 16px;
+  border-right: 1px solid rgba(255,255,255,.22);
+}
+.side-zone:last-of-type { border-right: 0; }
+.side-zone strong { font-size: 15px; letter-spacing: .14em; }
+.side-zone span { color: #b9cce6; font-size: 10px; }
+.local-zone strong { color: #ff8585; }
+.away-zone strong { color: #7dbbff; }
+.neutral-zone strong { color: #e5eaf2; }
+.side-player-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 38px 100px minmax(120px,1fr) 100px 55px;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 8px 4px;
+  border-top: 1px solid rgba(255,255,255,.16);
+}
+.side-player-row > img { width: 36px; height: 36px; object-fit: contain; }
+.side-player-row > strong { text-align: left; font-size: 11px; letter-spacing: .08em; }
+.side-player-row > small { color: #b9cce6; font-weight: 800; }
+.side-position-track {
+  position: relative;
+  height: 8px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #e34e55 0 33.333%, #9aa7b9 33.333% 66.666%, #277fe5 66.666% 100%);
+}
+.side-position-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: white;
+  background: #e34e55;
+  box-shadow: 0 3px 12px rgba(0,0,0,.45);
+  font-size: 10px;
+  font-weight: 900;
+  transform: translate(-50%,-50%);
+  transition: left .12s ease;
+}
+.player-two-marker { background: #0878ff; }
+.side-position-marker.at-away { background: #0878ff; }
+.side-position-marker.at-local { background: #e34e55; }
+.side-position-label { text-align: center; font-size: 10px; font-weight: 900; letter-spacing: .08em; }
+@media (max-width: 650px) {
+  .side-selection-pitch { padding: 10px 7px; }
+  .side-zone { min-height: 72px; }
+  .side-zone strong { font-size: 11px; }
+  .side-zone span { font-size: 8px; }
+  .side-player-row { grid-template-columns: 30px 1fr 1.5fr; gap: 7px; }
+  .side-player-row > img { width: 28px; height: 28px; }
+  .side-position-label { grid-column: 2; text-align: left; }
+  .side-player-row > small { grid-column: 3; grid-row: 2; text-align: right; }
+}
