@@ -208,10 +208,10 @@ function makeCharacter(club, role, teamIndex) {
     teamIndex,
     x: 0,
     y: HEIGHT / 2,
-    width: role === "goalkeeper" ? 76 : 84,
-    height: role === "goalkeeper" ? 90 : 96,
-    hitWidth: 48,
-    hitHeight: 48,
+    width: role === "goalkeeper" ? 64 : 72,
+    height: role === "goalkeeper" ? 76 : 82,
+    hitWidth: 40,
+    hitHeight: 40,
     direction: teamIndex === 0 ? 1 : -1
   };
 }
@@ -230,10 +230,11 @@ function placeTeams() {
   const left = matchTeams[0];
   const right = matchTeams[1];
 
-  left.goalkeeper.x = FIELD.left + 8;
+  // Porteros adelantados respecto a la línea de fondo, pero aún protegiendo la portería.
+  left.goalkeeper.x = FIELD.left + 45;
   left.player.x = FIELD.left + 115;
   right.player.x = FIELD.right - 115 - right.player.width;
-  right.goalkeeper.x = FIELD.right - 8 - right.goalkeeper.width;
+  right.goalkeeper.x = FIELD.right - 45 - right.goalkeeper.width;
 
   [left, right].forEach(team => {
     team.goalkeeper.teamIndex = team.index;
@@ -356,7 +357,7 @@ function moveCharacter(character, team, dt) {
   }
 
   if (character.role === "goalkeeper") {
-    character.x = side === 0 ? FIELD.left + 8 : FIELD.right - 8 - character.width;
+    character.x = side === 0 ? FIELD.left + 45 : FIELD.right - 45 - character.width;
   } else {
     const minX = side === 0 ? FIELD.left + 55 : WIDTH * 0.52;
     const maxX = side === 0 ? WIDTH * 0.46 - character.width : FIELD.right - 55 - character.width;
