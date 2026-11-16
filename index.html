@@ -96,6 +96,20 @@
       </div>
     </section>
 
+    <section id="bracketScreen" class="screen bracket-screen hidden">
+      <div class="bracket-panel">
+        <div class="bracket-heading">
+          <div><p class="eyebrow">UEFA CHAMPIONS LEAGUE</p><h1>Cuadro de competición</h1></div>
+          <div class="bracket-trophy" aria-hidden="true">🏆</div>
+        </div>
+        <div id="bracketStatus" class="bracket-status">SEMIFINALES</div>
+        <div id="tournamentBracket" class="tournament-bracket"></div>
+        <div class="bracket-actions">
+          <button id="bracketBack" class="primary-button">VOLVER AL PARTIDO</button>
+        </div>
+      </div>
+    </section>
+
     <section id="gameScreen" class="game-screen hidden">
       <header class="game-header">
         <div class="team-score" id="leftTeamHud">
@@ -121,7 +135,10 @@
       </div>
       <footer class="game-footer">
         <span id="controlsText">Jugador 1: W A S D</span>
-        <button id="quitMatch" class="secondary-button">SALIR DEL PARTIDO</button>
+        <div class="game-footer-actions">
+          <button id="viewBracket" class="secondary-button hidden">VER CUADRO</button>
+          <button id="quitMatch" class="secondary-button">SALIR DEL PARTIDO</button>
+        </div>
       </footer>
     </section>
   </main>
