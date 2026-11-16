@@ -319,6 +319,12 @@ function getSide(team) {
   return team.index;
 }
 
+// Las estadísticas de los archivos config.json están limitadas al rango 5–10.
+function getStatValue(character, statName) {
+  const value = Number(character[statName === "speed" ? "speedStat" : "kickStat"]);
+  return Number.isFinite(value) ? Math.max(5, Math.min(10, value)) : 5;
+}
+
 function moveCharacter(character, team, dt) {
   const side = getSide(team);
   const isHuman = Boolean(team.controlPlayer);
@@ -328,7 +334,9 @@ function moveCharacter(character, team, dt) {
 
   let dx = 0;
   let dy = 0;
-  const movementSpeed = (2.5 + character.speedStat * 0.78) * dt;
+  const speedStat = getStatValue(character, "speed");
+  // Velocidad: 4 px/frame con stat 5 y 8.5 px/frame con stat 10.
+  const movementSpeed = (4 + (speedStat - 5) * 0.9) * dt;
 
   if (isHuman) {
     if (keys[keysForTeam.up]) dy -= 1;
@@ -388,7 +396,9 @@ function collideWithCharacter(character, team) {
   const centerY = box.y + box.height / 2;
   // -1 = golpe en la parte superior; +1 = golpe en la parte inferior.
   const impact = Math.max(-1, Math.min(1, (ball.y - centerY) / (box.height / 2)));
-  const force = 5 + character.kickStat * 0.42;
+  const kickStat = getStatValue(character, "kick");
+  // Potencia horizontal de la patada: 6 con stat 5 y 11.5 con stat 10.
+  const force = 6 + (kickStat - 5) * 1.1;
   const direction = team.index === 0 ? 1 : -1;
   const verticalInfluence = Math.abs(impact);
 
@@ -519,7 +529,7 @@ function showMatchOverlay(title, message, buttonText, callback) {
 
 function finishMatch(winnerIndex, title) {
   matchState = "finished";
-  audio.match.pause();
+
   audio.crowd.pause();
   const message = winnerIndex === null
     ? `Empate ${score[0]} - ${score[1]}`
@@ -626,7 +636,7 @@ function gameLoop(timestamp) {
 function returnToMenu() {
   matchState = "stopped";
   cancelAnimationFrame(animationFrame);
-  audio.match.pause();
+
   audio.crowd.pause();
   showScreen("menu");
   startMenuMusic();
