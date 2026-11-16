@@ -191,3 +191,13 @@ h1 { margin: 0 0 28px; font-size: clamp(25px, 4vw, 38px); text-transform: upperc
   .bracket-heading h1 { font-size: 23px; }
   .game-footer-actions { width: 100%; flex-direction: column; }
 }
+
+.bracket-message {
+  max-width: 850px;
+  margin: -8px auto 22px;
+  color: #d5e5ff;
+  text-align: center;
+  line-height: 1.55;
+  font-size: 14px;
+}
+.bracket-actions .primary-button { min-width: min(320px, 100%); }
