@@ -17,6 +17,17 @@ const HALF_SECONDS = 150;
 const TOTAL_SECONDS = HALF_SECONDS * 2;
 const SPRITE_COLUMNS = 5;
 const SPRITE_ROWS = 3;
+const SPRITE_WIDTH = 1236;
+const SPRITE_HEIGHT = 1272;
+const SPRITE_ANIMATIONS = {
+  idle: { frames: [0, 1, 2], frameDuration: 0.55, loop: true },
+  run: { frames: [3, 4, 5, 6, 7, 8, 9], frameDuration: 0.095, loop: true },
+  celebrate: { frames: [10, 11], frameDuration: 0.24, loop: true },
+  lose: { frames: [13, 14], frameDuration: 0.42, loop: true },
+  // La hoja actual no contiene una pose inequívoca de golpeo.
+  // Se utiliza temporalmente un fotograma de carrera durante el contacto.
+  kick: { frames: [9], frameDuration: 0.55, loop: false }
+};
 
 const PROJECT_BASE = new URL("./", document.baseURI);
 const CLUBS_INDEX = new URL("images/clubs/clubs.json", PROJECT_BASE);
@@ -44,6 +55,86 @@ const screens = {
 };
 
 const imageCache = new Map();
+const spriteSheetCache = new Map();
+
+function prepareSpriteSheet(src) {
+  if (spriteSheetCache.has(src)) return spriteSheetCache.get(src);
+
+  const promise = new Promise(resolve => {
+    const img = loadImage(src);
+    const inspect = () => {
+      if (!img.naturalWidth || !img.naturalHeight) {
+        resolve({ valid: false, image: img, error: "No se pudo cargar la imagen." });
+        return;
+      }
+      if (img.naturalWidth !== SPRITE_WIDTH || img.naturalHeight !== SPRITE_HEIGHT) {
+        resolve({
+          valid: false,
+          image: img,
+          error: `Resolución incorrecta: ${img.naturalWidth}x${img.naturalHeight}; se requiere ${SPRITE_WIDTH}x${SPRITE_HEIGHT}.`
+        });
+        return;
+      }
+
+      try {
+        const analysisCanvas = document.createElement("canvas");
+        analysisCanvas.width = SPRITE_WIDTH;
+        analysisCanvas.height = SPRITE_HEIGHT;
+        const analysisContext = analysisCanvas.getContext("2d", { willReadFrequently: true });
+        analysisContext.clearRect(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
+        analysisContext.drawImage(img, 0, 0);
+        const pixels = analysisContext.getImageData(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT).data;
+        const frames = [];
+
+        for (let row = 0; row < SPRITE_ROWS; row++) {
+          for (let column = 0; column < SPRITE_COLUMNS; column++) {
+            const cellLeft = Math.round(column * SPRITE_WIDTH / SPRITE_COLUMNS);
+            const cellRight = Math.round((column + 1) * SPRITE_WIDTH / SPRITE_COLUMNS);
+            const cellTop = Math.round(row * SPRITE_HEIGHT / SPRITE_ROWS);
+            const cellBottom = Math.round((row + 1) * SPRITE_HEIGHT / SPRITE_ROWS);
+            let minX = cellRight, minY = cellBottom, maxX = -1, maxY = -1;
+
+            for (let y = cellTop; y < cellBottom; y++) {
+              for (let x = cellLeft; x < cellRight; x++) {
+                const alpha = pixels[(y * SPRITE_WIDTH + x) * 4 + 3];
+                if (alpha > 8) {
+                  if (x < minX) minX = x;
+                  if (x > maxX) maxX = x;
+                  if (y < minY) minY = y;
+                  if (y > maxY) maxY = y;
+                }
+              }
+            }
+
+            if (maxX < minX || maxY < minY) {
+              resolve({ valid: false, image: img, error: `La celda ${row * SPRITE_COLUMNS + column + 1} está vacía.` });
+              return;
+            }
+            frames.push({
+              sx: minX,
+              sy: minY,
+              sw: maxX - minX + 1,
+              sh: maxY - minY + 1
+            });
+          }
+        }
+
+        resolve({ valid: true, image: img, frames });
+      } catch (error) {
+        resolve({ valid: false, image: img, error: `No se pudo analizar la transparencia: ${error.message}` });
+      }
+    };
+
+    if (img.complete && img.naturalWidth) inspect();
+    else {
+      img.addEventListener("load", inspect, { once: true });
+      img.addEventListener("error", () => resolve({ valid: false, image: img, error: "Error al cargar la imagen." }), { once: true });
+    }
+  });
+
+  spriteSheetCache.set(src, promise);
+  return promise;
+}
 const audio = {
   menu: new Audio(ASSET.menuMusic),
   goal: new Audio(ASSET.goal),
@@ -177,6 +268,17 @@ async function loadClubs() {
   const failed = results.filter(result => result.status === "rejected");
 
   if (clubs.length === 0) throw new Error("No se pudo cargar ningún club. Revisa la consola del navegador (F12) para ver el error concreto.");
+
+  // Precarga y analiza una sola vez las hojas de jugador y portero de todos los clubes.
+  const spriteJobs = clubs.flatMap(club =>
+    ["player", "goalkeeper"].map(async role => {
+      club[role].spriteSheet = await prepareSpriteSheet(club[role].image);
+      if (!club[role].spriteSheet.valid) {
+        console.error(`Sprite no válido para ${club.club_name} (${role}): ${club[role].spriteSheet.error}`);
+      }
+    })
+  );
+  await Promise.all(spriteJobs);
 
   populateClubSelectors();
   populateChampionsSelector();
@@ -319,6 +421,10 @@ function makeCharacter(club, role, teamIndex) {
   return {
     name: data.name,
     image: loadImage(data.image),
+    spriteSheet: data.spriteSheet || null,
+    animationState: "idle",
+    animationTime: 0,
+    kickTimer: 0,
     speedStat: data.stats.speed,
     kickStat: data.stats.kick,
     role,
@@ -533,6 +639,8 @@ function getStatValue(character, statName) {
 }
 
 function moveCharacter(character, team, dt) {
+  const previousX = character.x;
+  const previousY = character.y;
   const side = getSide(team);
   const controller = team.controllers?.[character.role] ?? team.controlPlayer ?? 0;
   const isHuman = Boolean(controller);
@@ -596,6 +704,52 @@ function moveCharacter(character, team, dt) {
     character.x = Math.max(minX, Math.min(maxX, character.x));
   }
   character.y = Math.max(FIELD.top, Math.min(FIELD.bottom - character.height, character.y));
+
+  if (!["kick", "celebrate", "lose"].includes(character.animationState)) {
+    const movedDistance = Math.hypot(character.x - previousX, character.y - previousY);
+    const nextState = movedDistance > 0.35 ? "run" : "idle";
+    if (character.animationState !== nextState) {
+      character.animationState = nextState;
+      character.animationTime = 0;
+    }
+  }
+}
+
+function setCharacterAnimation(character, state, duration = 0) {
+  if (!character) return;
+  character.animationState = state;
+  character.animationTime = 0;
+  character.kickTimer = duration;
+}
+
+function setTeamAnimation(teamIndex, state) {
+  const team = matchTeams[teamIndex];
+  if (!team) return;
+  setCharacterAnimation(team.player, state);
+  setCharacterAnimation(team.goalkeeper, state);
+}
+
+function resetTeamAnimations() {
+  matchTeams.forEach(team => {
+    setCharacterAnimation(team.player, "idle");
+    setCharacterAnimation(team.goalkeeper, "idle");
+  });
+}
+
+function updateCharacterAnimations(dt) {
+  matchTeams.forEach(team => {
+    [team.player, team.goalkeeper].forEach(character => {
+      if (!character) return;
+      character.animationTime += dt / 60;
+      if (character.animationState === "kick") {
+        character.kickTimer -= dt / 60;
+        if (character.kickTimer <= 0) {
+          character.animationState = "idle";
+          character.animationTime = 0;
+        }
+      }
+    });
+  });
 }
 
 function getHitBox(character) {
@@ -638,6 +792,7 @@ function collideWithCharacter(character, team) {
   ball.vx = direction * force * Math.cos(angle);
   ball.vy = force * Math.sin(angle) + incomingSpin;
   ball.lastHit = team.index;
+  setCharacterAnimation(character, "kick", 0.55);
   playSound("kick");
   return true;
 }
@@ -698,6 +853,8 @@ function registerGoal(scoringTeam) {
   else score[scoringTeam] += 1;
   lastScoringTeam = scoringTeam;
   goalPauseScorer = scoringTeam;
+  setTeamAnimation(scoringTeam, "celebrate");
+  setTeamAnimation(1 - scoringTeam, "lose");
   kickoffTeam = 1 - scoringTeam; // Saca el equipo que recibió el gol.
   goalPauseRemaining = 2;
   updateHud();
@@ -757,6 +914,7 @@ function updateGoalPause(dt) {
       return;
     }
     goalPauseGoalRect = null;
+    resetTeamAnimations();
     matchState = "kickoff";
     cpuKickoffTimer = 0;
     prepareKickoffPositions();
@@ -791,6 +949,7 @@ function startKickoff(teamIndex) {
   ball.vx = direction * force * Math.cos(angle);
   ball.vy = force * Math.sin(angle);
   ball.lastHit = teamIndex;
+  setCharacterAnimation(team.player, "kick", 0.55);
   matchState = "playing";
   team.player.aiObservedLastHit = teamIndex;
   team.goalkeeper.aiObservedLastHit = teamIndex;
@@ -897,9 +1056,15 @@ function showMatchOverlay(title, message, buttonText, callback) {
 function finishMatch(winnerIndex, title) {
   if (matchState === "finished" || matchState === "final_whistle") return;
 
-  // Congela el partido durante todo el silbato final.
+  // Congela el partido durante todo el silbato final y muestra el resultado emocional.
   matchState = "final_whistle";
   keys = {};
+  if (winnerIndex === 0 || winnerIndex === 1) {
+    setTeamAnimation(winnerIndex, "celebrate");
+    setTeamAnimation(1 - winnerIndex, "lose");
+  } else {
+    resetTeamAnimations();
+  }
 
   // El silbato final sustituye al normal y la afición se detiene.
   audio.whistle.pause();
@@ -1581,25 +1746,24 @@ function openTournamentBracket() {
 }
 
 function drawCharacter(character) {
-  const img = character.image;
-  if (!img || !img.complete || !img.naturalWidth) return;
+  const sheet = character.spriteSheet;
+  if (!sheet?.valid || !sheet.image?.complete || !sheet.image.naturalWidth) return;
 
-  const frameWidth = img.naturalWidth / SPRITE_COLUMNS;
-  const frameHeight = img.naturalHeight / SPRITE_ROWS;
-  const drawX = character.x;
-  const drawY = character.y;
+  const animation = SPRITE_ANIMATIONS[character.animationState] || SPRITE_ANIMATIONS.idle;
+  const framePosition = animation.loop
+    ? Math.floor(character.animationTime / animation.frameDuration) % animation.frames.length
+    : Math.min(animation.frames.length - 1, Math.floor(character.animationTime / animation.frameDuration));
+  const frameIndex = animation.frames[framePosition];
+  const frame = sheet.frames[frameIndex];
+  if (!frame) return;
 
-  ctx.save();
-  if (character.teamIndex === 1) {
-    ctx.translate(drawX + character.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, 0, frameWidth, frameHeight, 0, drawY, character.width, character.height);
-  } else {
-    ctx.drawImage(img, 0, 0, frameWidth, frameHeight, drawX, drawY, character.width, character.height);
-  }
-  ctx.restore();
+  // Los personajes siempre miran de frente: no se espejan al cambiar de equipo.
+  ctx.drawImage(
+    sheet.image,
+    frame.sx, frame.sy, frame.sw, frame.sh,
+    character.x, character.y, character.width, character.height
+  );
 }
-
 function drawBall() {
   if (ballImage.complete && ballImage.naturalWidth) {
     const frameWidth = ballImage.naturalWidth / 5;
@@ -1698,6 +1862,7 @@ function gameLoop(timestamp) {
     }
   }
 
+  updateCharacterAnimations(dt);
   drawGame();
   animationFrame = requestAnimationFrame(gameLoop);
 }
