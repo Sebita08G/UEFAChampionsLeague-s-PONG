@@ -31,8 +31,8 @@
 
     <section id="friendlySidesScreen" class="screen selection-screen hidden">
       <div class="selection-panel side-selection-panel">
-        <p class="eyebrow">MODO AMISTOSO</p>
-        <h1>Elige tu bando</h1>
+        <p class="eyebrow" id="sideSelectionEyebrow">MODO AMISTOSO</p>
+        <h1 id="sideSelectionTitle">Elige tu bando</h1>
         <p class="friendly-instructions">Muévete entre LOCAL, NEUTRAL y VISITANTE. Puedes cambiar de bando en cualquier momento antes de continuar.</p>
         <div class="side-selection-pitch simple-side-table">
           <div class="side-table-cell local-cell"><strong>LOCAL</strong></div>
@@ -82,6 +82,42 @@
           <button id="startMatch" class="primary-button" disabled>COMENZAR PARTIDO</button>
         </div>
         <p id="selectionHint" class="selection-hint">Selecciona los clubes para comenzar.</p>
+      </div>
+    </section>
+
+    <section id="championsModeScreen" class="screen selection-screen hidden">
+      <div class="selection-panel champions-panel">
+        <p class="eyebrow">UEFA CHAMPIONS LEAGUE</p>
+        <h1>¿Cómo quieres competir?</h1>
+        <p class="friendly-instructions">Elige la modalidad de la competición.</p>
+        <div class="selection-actions champions-mode-actions">
+          <button id="individualMode" class="secondary-button">INDIVIDUAL</button>
+          <button id="competitionMode" class="primary-button">COMPETENCIA</button>
+        </div>
+        <p class="selection-hint">Individual: juegas todo el torneo con un club. Competencia: los jugadores pueden elegir equipo antes de cada partido.</p>
+        <div class="selection-actions"><button id="championsModeBack" class="secondary-button">VOLVER</button></div>
+      </div>
+    </section>
+
+    <section id="competitionSetupScreen" class="screen selection-screen hidden">
+      <div class="selection-panel champions-panel">
+        <p class="eyebrow">UEFA CHAMPIONS LEAGUE · COMPETENCIA</p>
+        <h1>Prepara la competición</h1>
+        <div class="champions-options">
+          <label for="competitionDifficultySelect">DIFICULTAD DE LA CPU</label>
+          <select id="competitionDifficultySelect">
+            <option value="amateur">Aficionado</option>
+            <option value="professional" selected>Profesional</option>
+            <option value="legend">Leyenda</option>
+          </select>
+          <p>Los cuatro clubes se sortearán automáticamente.</p>
+          <p>Semifinales: ida y vuelta · Final: partido único.</p>
+          <p class="champions-note">Antes de cada partido, los jugadores podrán elegir sus bandos. Si ninguno participa, el resultado se simulará.</p>
+        </div>
+        <div class="selection-actions">
+          <button id="competitionSetupBack" class="secondary-button">VOLVER</button>
+          <button id="startCompetition" class="primary-button">REALIZAR SORTEO</button>
+        </div>
       </div>
     </section>
 
