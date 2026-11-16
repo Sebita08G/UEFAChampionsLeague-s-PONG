@@ -38,6 +38,7 @@ const screens = {
   menu: document.getElementById("mainMenu"),
   clubs: document.getElementById("clubScreen"),
   champions: document.getElementById("championsScreen"),
+  bracket: document.getElementById("bracketScreen"),
   game: document.getElementById("gameScreen")
 };
 
@@ -355,6 +356,7 @@ function beginMatch() {
   updateHud();
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
+  document.getElementById("viewBracket").classList.toggle("hidden", !tournamentMode);
   showScreen("game");
   startMatchMusic();
   updateControlsText();
@@ -797,7 +799,7 @@ function simulateCpuSemi(clubA, clubB) {
   const winner = totalA === totalB
     ? (Math.random() < 0.5 ? clubA : clubB)
     : (totalA > totalB ? clubA : clubB);
-  return { winner, firstLeg, secondLeg, totalA, totalB };
+  return { clubA, clubB, winner, firstLeg, secondLeg, totalA, totalB };
 }
 
 function getTournamentDifficulty() {
@@ -812,11 +814,15 @@ function beginChampionsTournament() {
     return;
   }
   const opponents = shuffleClubs(clubs.filter(club => club.folder !== playerClub.folder)).slice(0, 3);
+  const cpuSemi = simulateCpuSemi(opponents[1], opponents[2]);
   tournament = {
     playerClub,
     difficulty: document.getElementById("championsDifficultySelect").value,
     semifinalOpponent: opponents[0],
-    finalOpponent: simulateCpuSemi(opponents[1], opponents[2]).winner,
+    finalOpponent: cpuSemi.winner,
+    cpuSemi,
+    playerSemi: { firstLeg: null, secondLeg: null, aggregatePlayer: null, aggregateOpponent: null, winner: null },
+    finalResult: null,
     round: "semifinal",
     leg: 1,
     aggregatePlayer: 0,
@@ -862,6 +868,7 @@ function startTournamentMatch(opponent, leg) {
 }
 
 function finishTournamentAndReturn(title, message) {
+  renderTournamentBracket();
   showMatchOverlay(title, message, "VOLVER AL MENÚ", returnToMenu);
 }
 
@@ -873,6 +880,8 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
   if (tournament.round === "semifinal" && tournament.leg === 1) {
     tournament.aggregatePlayer = playerGoals;
     tournament.aggregateOpponent = opponentGoals;
+    tournament.playerSemi.firstLeg = [playerGoals, opponentGoals];
+    renderTournamentBracket();
     showMatchOverlay(
       "FIN DE LA IDA",
       `${matchMessage}. Global provisional: ${playerGoals} - ${opponentGoals}.`,
@@ -885,7 +894,11 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
   if (tournament.round === "semifinal") {
     tournament.aggregatePlayer += playerGoals;
     tournament.aggregateOpponent += opponentGoals;
+    tournament.playerSemi.secondLeg = [playerGoals, opponentGoals];
+    tournament.playerSemi.aggregatePlayer = tournament.aggregatePlayer;
+    tournament.playerSemi.aggregateOpponent = tournament.aggregateOpponent;
     if (tournament.aggregatePlayer === tournament.aggregateOpponent) {
+      renderTournamentBracket();
       finishTournamentAndReturn(
         "SEMIFINAL EMPATADA",
         `Global ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. La eliminatoria necesita un desempate, que todavía no está implementado.`
@@ -893,13 +906,17 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
       return;
     }
     if (tournament.aggregatePlayer < tournament.aggregateOpponent) {
+      tournament.playerSemi.winner = tournament.semifinalOpponent;
+      renderTournamentBracket();
       finishTournamentAndReturn(
         "ELIMINADO EN SEMIFINALES",
         `Global: ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}.`
       );
       return;
     }
+    tournament.playerSemi.winner = tournament.playerClub;
     tournament.round = "final";
+    renderTournamentBracket();
     showMatchOverlay(
       "¡CLASIFICADO PARA LA FINAL!",
       `Has ganado la semifinal por ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. Tu rival será ${tournament.finalOpponent.club_name}.`,
@@ -909,6 +926,12 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     return;
   }
 
+  tournament.finalResult = {
+    playerGoals,
+    opponentGoals,
+    winner: winnerIndex === null ? null : matchTeams[winnerIndex].club
+  };
+  renderTournamentBracket();
   if (winnerIndex === null) {
     finishTournamentAndReturn(
       "FINAL EMPATADA",
@@ -924,6 +947,106 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
       ? `¡Has conquistado la UEFA Champions League con ${tournament.playerClub.club_name}! 🏆`
       : `${champion.club.club_name} ha ganado la final.`
   );
+}
+
+function bracketClub(club, scoreText = "", status = "") {
+  if (!club) return '<div class="bracket-team"><span class="bracket-team-name">Por determinar</span></div>';
+  const shield = new URL(club.club_shield, PROJECT_BASE).href;
+  return `<div class="bracket-team ${status}">
+    <img src="${shield}" alt="">
+    <span class="bracket-team-name">${club.club_name}</span>
+    <strong class="bracket-team-score">${scoreText}</strong>
+  </div>`;
+}
+
+function bracketMatchCard(title, clubA, clubB, lines, winner = null, state = "") {
+  const teamAStatus = winner && winner.folder === clubA?.folder ? "qualified" : "";
+  const teamBStatus = winner && winner.folder === clubB?.folder ? "qualified" : "";
+  return `<article class="bracket-match ${state}">
+    <h3>${title}</h3>
+    ${bracketClub(clubA, "", teamAStatus)}
+    ${bracketClub(clubB, "", teamBStatus)}
+    <div class="bracket-match-scores">${lines.map(line => `<p>${line}</p>`).join("")}</div>
+    ${winner ? `<div class="bracket-qualified">CLASIFICADO: ${winner.club_name}</div>` : ""}
+  </article>`;
+}
+
+function renderTournamentBracket() {
+  if (!tournament) return;
+  const cpu = tournament.cpuSemi;
+  const semi = tournament.playerSemi;
+  const cpuWinner = cpu.winner;
+  const playerWinner = semi.winner;
+  const cpuLines = [
+    `Ida: ${cpu.firstLeg[0]} - ${cpu.firstLeg[1]}`,
+    `Vuelta: ${cpu.secondLeg[1]} - ${cpu.secondLeg[0]}`,
+    `Global: ${cpu.totalA} - ${cpu.totalB}`
+  ];
+  const playerLines = [
+    `Ida: ${semi.firstLeg ? `${semi.firstLeg[0]} - ${semi.firstLeg[1]}` : "Pendiente"}`,
+    `Vuelta: ${semi.secondLeg ? `${semi.secondLeg[0]} - ${semi.secondLeg[1]}` : "Pendiente"}`,
+    `Global: ${semi.aggregatePlayer === null ? "—" : `${semi.aggregatePlayer} - ${semi.aggregateOpponent}`}`
+  ];
+  const finalLines = tournament.finalResult
+    ? [`Final: ${tournament.finalResult.playerGoals} - ${tournament.finalResult.opponentGoals}`]
+    : ["Final: Pendiente"];
+  const playerSemiCard = bracketMatchCard(
+    "SEMIFINAL 1 · IDA Y VUELTA",
+    tournament.playerClub,
+    tournament.semifinalOpponent,
+    playerLines,
+    playerWinner,
+    tournament.round === "semifinal" ? "current" : ""
+  );
+  const cpuSemiCard = bracketMatchCard(
+    "SEMIFINAL 2 · CPU",
+    cpu.clubA,
+    cpu.clubB,
+    cpuLines,
+    cpuWinner,
+    "simulated"
+  );
+  const finalWinner = tournament.finalResult?.winner || null;
+  const finalCard = bracketMatchCard(
+    "FINAL · PARTIDO ÚNICO",
+    playerWinner || tournament.playerClub,
+    cpuWinner,
+    finalLines,
+    finalWinner,
+    tournament.round === "final" ? "current" : ""
+  );
+  document.getElementById("tournamentBracket").innerHTML = `
+    <section class="bracket-column">
+      <h2>SEMIFINALES</h2>
+      ${playerSemiCard}
+      ${cpuSemiCard}
+    </section>
+    <div class="bracket-connector" aria-hidden="true">›</div>
+    <section class="bracket-column final-column">
+      <h2>FINAL</h2>
+      ${finalCard}
+      <div class="bracket-champion">${finalWinner ? `🏆 CAMPEÓN: ${finalWinner.club_name}` : "🏆 Por decidir"}</div>
+    </section>`;
+  document.getElementById("bracketStatus").textContent =
+    tournament.finalResult?.winner ? "COMPETICIÓN FINALIZADA" :
+    tournament.round === "final" ? "GRAN FINAL" :
+    semi.secondLeg ? "SEMIFINAL COMPLETADA" :
+    semi.firstLeg ? "SEMIFINAL · VUELTA PENDIENTE" : "SEMIFINALES · IDA PENDIENTE";
+}
+
+function openTournamentBracket() {
+  if (!tournamentMode || !tournament) return;
+  renderTournamentBracket();
+  window.matchStateBeforeBracket = matchState;
+  matchState = "bracket_view";
+  showScreen("bracket");
+}
+
+function closeTournamentBracket() {
+  if (!tournamentMode) return;
+  matchState = window.matchStateBeforeBracket || "playing";
+  showScreen("game");
+  lastFrame = performance.now();
 }
 
 function drawCharacter(character) {
@@ -1044,6 +1167,8 @@ document.getElementById("championsMode").addEventListener("click", () => {
 document.getElementById("championsClubSelect").addEventListener("change", updateChampionsClubCard);
 document.getElementById("championsBack").addEventListener("click", () => showScreen("menu"));
 document.getElementById("startChampions").addEventListener("click", beginChampionsTournament);
+document.getElementById("viewBracket").addEventListener("click", openTournamentBracket);
+document.getElementById("bracketBack").addEventListener("click", closeTournamentBracket);
 document.getElementById("championsMode").addEventListener("click", () => {
   updateChampionsClubCard();
   showScreen("champions");
