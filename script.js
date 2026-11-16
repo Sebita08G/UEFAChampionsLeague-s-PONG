@@ -453,14 +453,25 @@ function beginMatch() {
   animationFrame = requestAnimationFrame(gameLoop);
 }
 
+function getClubHudGradient(club) {
+  const colors = Array.isArray(club?.hud_color)
+    ? club.hud_color.filter(color => typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color))
+    : typeof club?.hud_color === "string" && /^#[0-9a-f]{6}$/i.test(club.hud_color)
+      ? [club.hud_color]
+      : [];
+  if (!colors.length) return "linear-gradient(180deg, #0878ff, #1742c5)";
+  if (colors.length === 1) return colors[0];
+  return `linear-gradient(180deg, ${colors[0]} 0%, ${colors[1]} 100%)`;
+}
+
 function updateHud() {
   const left = matchTeams[0];
   const right = matchTeams[1];
   if (!left || !right) return;
-  document.getElementById("leftShield").src = left.club.club_shield;
-  document.getElementById("rightShield").src = right.club.club_shield;
-  document.getElementById("leftClubName").textContent = left.club.club_acronym;
-  document.getElementById("rightClubName").textContent = right.club.club_acronym;
+  document.getElementById("leftClubName").textContent = left.club.club_acronym || left.club.club_name.slice(0, 3).toUpperCase();
+  document.getElementById("rightClubName").textContent = right.club.club_acronym || right.club.club_name.slice(0, 3).toUpperCase();
+  document.getElementById("leftTeamColor").style.background = getClubHudGradient(left.club);
+  document.getElementById("rightTeamColor").style.background = getClubHudGradient(right.club);
   document.getElementById("leftScore").textContent = score[0] + (extraTimeActive ? extraTimeGoals[0] : 0);
   document.getElementById("rightScore").textContent = score[1] + (extraTimeActive ? extraTimeGoals[1] : 0);
   document.getElementById("halfLabel").textContent =
