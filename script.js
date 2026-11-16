@@ -82,8 +82,10 @@ function getCpuReactionFrames() {
 let selectedTeams = [];
 let matchTeams = [];
 let score = [0, 0];
-let remainingTime = TOTAL_SECONDS;
+let remainingTime = HALF_SECONDS;
 let currentHalf = 1;
+let extraTimeActive = false;
+let extraTimeGoals = [0, 0];
 let matchState = "stopped";
 let keys = {};
 let lastFrame = 0;
@@ -347,8 +349,10 @@ function beginMatch() {
     return team;
   });
   score = [0, 0];
-  remainingTime = TOTAL_SECONDS;
+  remainingTime = HALF_SECONDS;
   currentHalf = 1;
+  extraTimeActive = false;
+  extraTimeGoals = [0, 0];
   matchState = "kickoff";
   kickoffTeam = 0; // El equipo de la izquierda siempre realiza el saque inicial.
   goalPauseRemaining = 0;
@@ -375,9 +379,12 @@ function updateHud() {
   document.getElementById("rightShield").src = right.club.club_shield;
   document.getElementById("leftClubName").textContent = left.club.club_acronym;
   document.getElementById("rightClubName").textContent = right.club.club_acronym;
-  document.getElementById("leftScore").textContent = score[0];
-  document.getElementById("rightScore").textContent = score[1];
-  document.getElementById("halfLabel").textContent = currentHalf === 1 ? "1.ª PARTE" : "2.ª PARTE";
+  document.getElementById("leftScore").textContent = score[0] + (extraTimeActive ? extraTimeGoals[0] : 0);
+  document.getElementById("rightScore").textContent = score[1] + (extraTimeActive ? extraTimeGoals[1] : 0);
+  document.getElementById("halfLabel").textContent =
+    currentHalf === 1 ? "1.ª PARTE" : currentHalf === 2 ? "2.ª PARTE" : "PRÓRROGA";
+  document.getElementById("leftScore").textContent = score[0] + (extraTimeActive ? extraTimeGoals[0] : 0);
+  document.getElementById("rightScore").textContent = score[1] + (extraTimeActive ? extraTimeGoals[1] : 0);
   updateTimerDisplay();
 }
 
@@ -569,7 +576,8 @@ function updateBall(dt) {
 
 function registerGoal(scoringTeam) {
   if (matchState !== "playing") return;
-  score[scoringTeam] += 1;
+  if (extraTimeActive) extraTimeGoals[scoringTeam] += 1;
+  else score[scoringTeam] += 1;
   lastScoringTeam = scoringTeam;
   goalPauseScorer = scoringTeam;
   kickoffTeam = 1 - scoringTeam; // Saca el equipo que recibió el gol.
@@ -587,7 +595,9 @@ function registerGoal(scoringTeam) {
   ball.vy *= 0.55;
   matchState = "goal_pause";
 
-  if (score[scoringTeam] >= WIN_SCORE) {
+  if (extraTimeActive && extraTimeGoals[scoringTeam] >= 2) {
+    pendingMatchFinish = { winner: scoringTeam, title: "¡VICTORIA EN LA PRÓRROGA!" };
+  } else if (!extraTimeActive && score[scoringTeam] >= WIN_SCORE) {
     // Se conserva la pausa visual antes de mostrar el resultado final.
     pendingMatchFinish = { winner: scoringTeam, title: "¡VICTORIA!" };
   }
@@ -691,7 +701,7 @@ function updateMatch(dt) {
   }
   if (matchState !== "playing") return;
 
-  remainingTime = Math.max(0, remainingTime - dt / 60);
+  if (!extraTimeActive) remainingTime = Math.max(0, remainingTime - dt / 60);
   updateTimerDisplay();
 
   matchTeams.forEach(team => {
@@ -703,12 +713,40 @@ function updateMatch(dt) {
   if (remainingTime <= 0) {
     if (currentHalf === 1) {
       beginSecondHalf();
+    } else if (score[0] === score[1] && tournamentMode) {
+      startExtraTime("El partido ha terminado empatado. ¡Comienza la prórroga! El primero en marcar 2 goles gana.");
     } else if (score[0] === score[1]) {
       finishMatch(null, "¡EMPATE!");
     } else {
       finishMatch(score[0] > score[1] ? 0 : 1, "¡PARTIDO FINALIZADO!");
     }
   }
+}
+
+function startExtraTime(message) {
+  extraTimeActive = true;
+  extraTimeGoals = [0, 0];
+  currentHalf = 3;
+  remainingTime = 0;
+  kickoffTeam = 0;
+  goalPauseRemaining = 0;
+  goalPauseGoalRect = null;
+  pendingMatchFinish = null;
+  cpuKickoffTimer = 0;
+  matchState = "kickoff";
+  prepareKickoffPositions();
+  updateHud();
+  showMatchOverlay(
+    "PRÓRROGA",
+    message,
+    "INICIAR PRÓRROGA",
+    () => {
+      document.getElementById("matchOverlay").classList.add("hidden");
+      matchState = "kickoff";
+      lastFrame = performance.now();
+      updateControlsText();
+    }
+  );
 }
 
 function beginSecondHalf() {
@@ -721,8 +759,10 @@ function beginSecondHalf() {
   resetBall(Math.random() < 0.5 ? -1 : 1);
   updateHud();
   showMatchOverlay("DESCANSO", "Cambio de campo. ¡Comienza la segunda parte!", "EMPEZAR 2.ª PARTE", () => {
+    document.getElementById("matchOverlay").classList.add("hidden");
     matchState = "playing";
     lastFrame = performance.now();
+    updateControlsText();
   });
   matchState = "halftime";
 }
@@ -758,9 +798,10 @@ function finishMatch(winnerIndex, title) {
       : gameMode === "cpu"
         ? (winnerIndex === 0 ? "¡VICTORIA!" : "¡DERROTA!")
         : (title || "¡PARTIDO FINALIZADO!");
+  const finalScore = score.map((goals, index) => goals + (extraTimeActive ? extraTimeGoals[index] : 0));
   const message = winnerIndex === null
-    ? `Empate ${score[0]} - ${score[1]}`
-    : `${matchTeams[winnerIndex].club.club_name} gana ${score[0]} - ${score[1]}`;
+    ? `Empate ${finalScore[0]} - ${finalScore[1]}`
+    : `${matchTeams[winnerIndex].club.club_name} gana ${finalScore[0]} - ${finalScore[1]}`;
 
   const revealResult = () => {
     if (matchState !== "final_whistle") return;
@@ -854,8 +895,10 @@ function startTournamentMatch(opponent, leg) {
   });
   selectedTeams = [leftClub, rightClub];
   score = [0, 0];
-  remainingTime = TOTAL_SECONDS;
+  remainingTime = HALF_SECONDS;
   currentHalf = 1;
+  extraTimeActive = false;
+  extraTimeGoals = [0, 0];
   matchState = "kickoff";
   kickoffTeam = 0;
   goalPauseRemaining = 0;
@@ -891,8 +934,8 @@ function finishTournamentAndReturn(title, message) {
 
 function handleTournamentMatchEnd(winnerIndex, matchMessage) {
   const playerSide = matchTeams.findIndex(team => team.controlPlayer === 1);
-  const playerGoals = score[playerSide];
-  const opponentGoals = score[1 - playerSide];
+  const playerGoals = score[playerSide] + (extraTimeActive ? extraTimeGoals[playerSide] : 0);
+  const opponentGoals = score[1 - playerSide] + (extraTimeActive ? extraTimeGoals[1 - playerSide] : 0);
 
   if (tournament.round === "semifinal" && tournament.leg === 1) {
     tournament.aggregatePlayer = playerGoals;
@@ -907,6 +950,30 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     return;
   }
 
+  if (tournament.round === "semifinal" && tournament.extraTimeForSemifinal) {
+    const playerWon = extraTimeGoals[playerSide] > extraTimeGoals[1 - playerSide];
+    tournament.playerSemi.extraTime = [...extraTimeGoals];
+    tournament.playerSemi.winner = playerWon ? tournament.playerClub : tournament.semifinalOpponent;
+    tournament.extraTimeForSemifinal = false;
+    if (!playerWon) {
+      showTournamentBracket(
+        "ELIMINADO EN SEMIFINALES",
+        `La prórroga termina ${extraTimeGoals[playerSide]} - ${extraTimeGoals[1 - playerSide]}.`,
+        "VOLVER AL MENÚ",
+        returnToMenu
+      );
+      return;
+    }
+    tournament.round = "final";
+    showTournamentBracket(
+      "¡CLASIFICADO PARA LA FINAL!",
+      `Has ganado la eliminatoria en la prórroga por ${extraTimeGoals[playerSide]} - ${extraTimeGoals[1 - playerSide]}. Tu rival será ${tournament.finalOpponent.club_name}.`,
+      "COMENZAR LA FINAL",
+      () => startTournamentMatch(tournament.finalOpponent, 1)
+    );
+    return;
+  }
+
   if (tournament.round === "semifinal") {
     tournament.aggregatePlayer += playerGoals;
     tournament.aggregateOpponent += opponentGoals;
@@ -915,12 +982,8 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     tournament.playerSemi.aggregateOpponent = tournament.aggregateOpponent;
 
     if (tournament.aggregatePlayer === tournament.aggregateOpponent) {
-      showTournamentBracket(
-        "SEMIFINAL · EMPATE GLOBAL",
-        `La eliminatoria termina ${tournament.aggregatePlayer} - ${tournament.aggregateOpponent}. Hace falta un desempate, que todavía no está implementado.`,
-        "VOLVER AL MENÚ",
-        returnToMenu
-      );
+      tournament.extraTimeForSemifinal = true;
+      startExtraTime("La eliminatoria está empatada en el global. ¡Prórroga! El primer equipo que marque 2 goles se clasifica.");
       return;
     }
     if (tournament.aggregatePlayer < tournament.aggregateOpponent) {
@@ -945,15 +1008,25 @@ function handleTournamentMatchEnd(winnerIndex, matchMessage) {
     return;
   }
 
+  if (tournament.round === "final" && winnerIndex === null && !tournament.extraTimeForFinal) {
+    tournament.extraTimeForFinal = true;
+    startExtraTime("La final ha terminado empatada. ¡Prórroga! El primer equipo que marque 2 goles será campeón.");
+    return;
+  }
+  if (tournament.round === "final" && tournament.extraTimeForFinal) {
+    winnerIndex = extraTimeGoals[0] > extraTimeGoals[1] ? 0 : 1;
+    tournament.extraTimeForFinal = false;
+  }
   tournament.finalResult = {
     playerGoals,
     opponentGoals,
+    extraTimeGoals: extraTimeActive ? [...extraTimeGoals] : null,
     winner: winnerIndex === null ? null : matchTeams[winnerIndex].club
   };
   if (winnerIndex === null) {
     showTournamentBracket(
       "FINAL EMPATADA",
-      "La final ha terminado en empate. Todavía no está implementada la tanda de penaltis.",
+      "La final ha terminado empatada.",
       "VOLVER AL MENÚ",
       returnToMenu
     );
