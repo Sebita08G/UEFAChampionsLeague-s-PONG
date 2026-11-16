@@ -174,18 +174,22 @@
     </section>
 
     <section id="gameScreen" class="game-screen hidden">
-      <header class="game-header">
-        <div class="team-score" id="leftTeamHud">
-          <img id="leftShield" src="" alt="">
-          <div><span id="leftClubName">LOCAL</span><strong id="leftScore">0</strong></div>
+      <header class="game-header champions-scoreboard" aria-label="Marcador del partido">
+        <div class="scoreboard-uefa-logo">
+          <img src="images/menu/logoWHITE.png" alt="UEFA Champions League">
         </div>
-        <div class="match-clock">
-          <span id="halfLabel">1.ª PARTE</span>
+        <div class="scoreboard-time">
           <strong id="matchTimer">02:30</strong>
+          <span id="halfLabel" class="visually-hidden">1.ª PARTE</span>
         </div>
-        <div class="team-score right-team" id="rightTeamHud">
-          <div><span id="rightClubName">VISITANTE</span><strong id="rightScore">0</strong></div>
-          <img id="rightShield" src="" alt="">
+        <div class="scoreboard-match">
+          <div class="scoreboard-team-color home-team-color" id="leftTeamColor"></div>
+          <strong class="scoreboard-club-acronym home-acronym" id="leftClubName">LOCAL</strong>
+          <strong class="scoreboard-goal" id="leftScore">0</strong>
+          <span class="scoreboard-score-divider">|</span>
+          <strong class="scoreboard-goal" id="rightScore">0</strong>
+          <strong class="scoreboard-club-acronym away-acronym" id="rightClubName">VISITANTE</strong>
+          <div class="scoreboard-team-color away-team-color" id="rightTeamColor"></div>
         </div>
       </header>
       <div class="pitch-wrap">
