@@ -922,3 +922,7 @@ loadClubs().catch(error => {
 });
 
 showScreen("intro");
+// Intenta iniciar la música desde la pantalla de título.
+// Si el navegador bloquea la reproducción automática, introStart/ENTER la iniciarán
+// en la primera interacción del usuario.
+startMenuMusic();
