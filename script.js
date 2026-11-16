@@ -254,12 +254,9 @@ function renderFriendlySideSelection() {
   [1, 2].forEach(player => {
     const position = friendlySidePositions[player];
     const marker = document.getElementById(`player${player}SideMarker`);
-    const label = document.getElementById(`player${player}SideLabel`);
+    if (!marker) return;
     marker.style.left = position < 0 ? "21.43%" : position > 0 ? "78.57%" : "50%";
     marker.style.top = player === 1 ? "36%" : "66%";
-    label.textContent = position < 0 ? "LOCAL" : position > 0 ? "VISITANTE" : "NEUTRAL";
-    marker.classList.toggle("at-local", position < 0);
-    marker.classList.toggle("at-away", position > 0);
   });
 }
 
