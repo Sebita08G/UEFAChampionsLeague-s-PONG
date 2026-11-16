@@ -704,21 +704,43 @@ function showMatchOverlay(title, message, buttonText, callback) {
 }
 
 function finishMatch(winnerIndex, title) {
-  if (matchState === "finished") return;
-  matchState = "finished";
+  if (matchState === "finished" || matchState === "final_whistle") return;
 
-  // El silbato final sustituye al silbato normal si todavía está sonando.
+  // Congela el partido durante todo el silbato final.
+  matchState = "final_whistle";
+  keys = {};
+
+  // El silbato final sustituye al normal y la afición se detiene.
   audio.whistle.pause();
   audio.whistle.currentTime = 0;
-  playSound("finalWhistle");
   audio.crowd.pause();
+  audio.finalWhistle.pause();
+  audio.finalWhistle.currentTime = 0;
+
+  const resultTitle = winnerIndex === null
+    ? "¡EMPATE!"
+    : gameMode === "cpu"
+      ? (winnerIndex === 0 ? "¡VICTORIA!" : "¡DERROTA!")
+      : (title || "¡PARTIDO FINALIZADO!");
   const message = winnerIndex === null
     ? `Empate ${score[0]} - ${score[1]}`
     : `${matchTeams[winnerIndex].club.club_name} gana ${score[0]} - ${score[1]}`;
-  showMatchOverlay(title, message, "VOLVER AL MENÚ", () => {
-    matchState = "stopped";
-    showScreen("menu");
-    startMenuMusic();
+
+  const revealResult = () => {
+    if (matchState !== "final_whistle") return;
+    matchState = "finished";
+    showMatchOverlay(resultTitle, message, "VOLVER AL MENÚ", () => {
+      matchState = "stopped";
+      showScreen("menu");
+      startMenuMusic();
+    });
+  };
+
+  // La pantalla de resultado aparece únicamente cuando termina el audio.
+  audio.finalWhistle.onended = revealResult;
+  audio.finalWhistle.play().catch(() => {
+    // Si el navegador no puede reproducir el archivo, no dejamos el partido bloqueado.
+    revealResult();
   });
 }
 
@@ -861,6 +883,11 @@ canvas.addEventListener("pointermove", event => {
 });
 
 document.addEventListener("keydown", event => {
+  // Durante el silbato final no se aceptan controles del partido.
+  if (matchState === "final_whistle") {
+    event.preventDefault();
+    return;
+  }
   if (matchState === "kickoff") {
     const kickoffSide = matchTeams[kickoffTeam];
     const attackDirection = kickoffTeam === 0 ? 1 : -1;
