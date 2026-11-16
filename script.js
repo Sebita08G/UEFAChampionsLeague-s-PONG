@@ -81,6 +81,10 @@ let animationFrame = 0;
 let ballFrame = 0;
 let ballFrameTimer = 0;
 let lastScoringTeam = null;
+let kickoffTeam = 0;
+let goalPauseRemaining = 0;
+let cpuKickoffTimer = 0;
+let goalPauseScorer = null;
 
 const stageImage = loadImage(ASSET.stage);
 const ballImage = loadImage(ASSET.ball);
@@ -288,15 +292,19 @@ function beginMatch() {
   score = [0, 0];
   remainingTime = TOTAL_SECONDS;
   currentHalf = 1;
-  matchState = "playing";
+  matchState = "kickoff";
+  kickoffTeam = 0; // El equipo de la izquierda siempre realiza el saque inicial.
+  goalPauseRemaining = 0;
+  cpuKickoffTimer = 0;
   keys = {};
   placeTeams();
-  resetBall(Math.random() < 0.5 ? -1 : 1);
+  resetBall(0);
   updateHud();
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
   showScreen("game");
   startMatchMusic();
+  updateControlsText();
   lastFrame = performance.now();
   cancelAnimationFrame(animationFrame);
   animationFrame = requestAnimationFrame(gameLoop);
@@ -324,9 +332,13 @@ function updateTimerDisplay() {
 }
 
 function updateControlsText() {
-  document.getElementById("controlsText").textContent = gameMode === "cpu"
+  const text = gameMode === "cpu"
     ? "Jugador 1: W A S D · CPU: control automático"
     : "Jugador 1: W A S D · Jugador 2: FLECHAS";
+  const status = matchState === "kickoff"
+    ? `SAQUE: ${kickoffTeam === 0 ? "EQUIPO IZQUIERDO (D)" : (gameMode === "cpu" ? "CPU" : "EQUIPO DERECHO (←)")}`
+    : text;
+  document.getElementById("controlsText").textContent = status;
 }
 
 function getSide(team) {
@@ -500,17 +512,81 @@ function registerGoal(scoringTeam) {
   if (matchState !== "playing") return;
   score[scoringTeam] += 1;
   lastScoringTeam = scoringTeam;
+  goalPauseScorer = scoringTeam;
+  kickoffTeam = 1 - scoringTeam; // Saca el equipo que recibió el gol.
+  goalPauseRemaining = 2;
   updateHud();
   playSound("goal");
 
+  // Mantiene el balón dentro de la portería y lo frena durante la pausa.
+  const goal = scoringTeam === 0 ? GOAL.right : GOAL.left;
+  ball.x = scoringTeam === 0 ? goal.x + goal.width - ball.radius : goal.x + ball.radius;
+  ball.y = Math.max(goal.y + ball.radius, Math.min(goal.y + goal.height - ball.radius, ball.y));
+  ball.vx = scoringTeam === 0 ? Math.max(2, Math.abs(ball.vx) * 0.55) : -Math.max(2, Math.abs(ball.vx) * 0.55);
+  ball.vy *= 0.55;
+  matchState = "goal_pause";
+
   if (score[scoringTeam] >= WIN_SCORE) {
-    finishMatch(scoringTeam, "¡VICTORIA!");
-    return;
+    // Se conserva la pausa visual antes de mostrar el resultado final.
+    pendingMatchFinish = { winner: scoringTeam, title: "¡VICTORIA!" };
   }
-  resetBall(scoringTeam === 0 ? 1 : -1);
+}
+
+let pendingMatchFinish = null;
+
+function updateGoalPause(dt) {
+  const friction = Math.pow(0.94, dt);
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+  ball.vx *= friction;
+  ball.vy *= friction;
+  goalPauseRemaining -= dt / 60;
+
+  if (goalPauseRemaining <= 0) {
+    if (pendingMatchFinish) {
+      const result = pendingMatchFinish;
+      pendingMatchFinish = null;
+      finishMatch(result.winner, result.title);
+      return;
+    }
+    resetBall(0);
+    matchState = "kickoff";
+    cpuKickoffTimer = 0.6;
+    updateControlsText();
+  }
+}
+
+function startKickoff(teamIndex) {
+  if (matchState !== "kickoff" || teamIndex !== kickoffTeam) return;
+  const direction = teamIndex === 0 ? 1 : -1;
+  ball.x = WIDTH / 2;
+  ball.y = HEIGHT / 2;
+  ball.vx = direction * 5.2;
+  ball.vy = 0;
+  ball.lastHit = teamIndex;
+  matchState = "playing";
+  matchTeams[teamIndex].player.aiObservedLastHit = teamIndex;
+  matchTeams[teamIndex].goalkeeper.aiObservedLastHit = teamIndex;
+  updateControlsText();
+}
+
+function updateKickoff(dt) {
+  // La CPU ejecuta el saque automáticamente cuando le corresponde.
+  if (gameMode === "cpu" && kickoffTeam === 1) {
+    cpuKickoffTimer += dt / 60;
+    if (cpuKickoffTimer >= 0.6) startKickoff(1);
+  }
 }
 
 function updateMatch(dt) {
+  if (matchState === "goal_pause") {
+    updateGoalPause(dt);
+    return;
+  }
+  if (matchState === "kickoff") {
+    updateKickoff(dt);
+    return;
+  }
   if (matchState !== "playing") return;
 
   remainingTime = Math.max(0, remainingTime - dt / 60);
@@ -651,7 +727,7 @@ function gameLoop(timestamp) {
   const dt = Math.min((timestamp - lastFrame) / (1000 / 60) || 1, 2);
   lastFrame = timestamp;
 
-  if (matchState === "playing") {
+  if (["playing", "kickoff", "goal_pause"].includes(matchState)) {
     updateMatch(dt);
     ballFrameTimer += dt;
     if (ballFrameTimer >= 7) {
@@ -711,6 +787,13 @@ canvas.addEventListener("pointermove", event => {
 });
 
 document.addEventListener("keydown", event => {
+  if (matchState === "kickoff") {
+    const keyForKickoff = kickoffTeam === 0 ? "d" : "arrowleft";
+    if (event.key.toLowerCase() === keyForKickoff) {
+      event.preventDefault();
+      startKickoff(kickoffTeam);
+    }
+  }
   if (event.key === "F3") {
     event.preventDefault();
     debugHitboxes = !debugHitboxes;
