@@ -374,7 +374,10 @@ function moveCharacter(character, team, dt) {
 
     const targetY = character.aiTargetY;
     const difference = targetY - character.y;
-    const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? 0.82 : 0.68);
+    // En Aficionado y Profesional el portero también usa el seguimiento reducido.
+    // En Leyenda conserva su velocidad de seguimiento actual.
+    const goalkeeperFollowMultiplier = cpuDifficulty === "legend" ? 0.82 : 0.68;
+    const cpuSpeed = movementSpeed * (character.role === "goalkeeper" ? goalkeeperFollowMultiplier : 0.68);
     if (Math.abs(difference) > 5) dy = Math.sign(difference);
     if (character.role === "player") {
       const targetX = Math.max(WIDTH * 0.55, Math.min(WIDTH * 0.82, ball.x + 85));
