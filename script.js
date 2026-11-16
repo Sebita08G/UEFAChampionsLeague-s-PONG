@@ -46,6 +46,8 @@ const audio = {
   goal: new Audio(ASSET.goal),
   missed: new Audio(ASSET.missed),
   kick: new Audio(ASSET.kick),
+  whistle: new Audio("audio/sounds/whistle.mp3"),
+  finalWhistle: new Audio("audio/sounds/final_whistle.mp3"),
   crowd: new Audio(ASSET.crowd)
 };
 audio.menu.loop = true;
@@ -55,6 +57,8 @@ audio.crowd.volume = 0.28;
 audio.goal.volume = 0.8;
 audio.kick.volume = 0.55;
 audio.missed.volume = 0.5;
+audio.whistle.volume = 0.8;
+audio.finalWhistle.volume = 0.9;
 
 let clubs = [];
 let gameMode = "cpu";
@@ -539,6 +543,7 @@ function registerGoal(scoringTeam) {
   goalPauseRemaining = 2;
   updateHud();
   playSound("goal");
+  playSound("whistle");
 
   // El balón permanece dentro de la portería y rebota contra sus cuatro lados.
   goalPauseGoalRect = scoringTeam === 0 ? GOAL.right : GOAL.left;
@@ -630,6 +635,7 @@ function startKickoff(teamIndex) {
   team.player.aiObservedLastHit = teamIndex;
   team.goalkeeper.aiObservedLastHit = teamIndex;
   playSound("kick");
+  playSound("whistle");
   updateControlsText();
 }
 
@@ -698,8 +704,13 @@ function showMatchOverlay(title, message, buttonText, callback) {
 }
 
 function finishMatch(winnerIndex, title) {
+  if (matchState === "finished") return;
   matchState = "finished";
 
+  // El silbato final sustituye al silbato normal si todavía está sonando.
+  audio.whistle.pause();
+  audio.whistle.currentTime = 0;
+  playSound("finalWhistle");
   audio.crowd.pause();
   const message = winnerIndex === null
     ? `Empate ${score[0]} - ${score[1]}`
