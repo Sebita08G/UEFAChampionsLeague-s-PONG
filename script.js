@@ -69,70 +69,36 @@ function prepareSpriteSheet(src) {
         resolve({ valid: false, image: img, error: "No se pudo cargar la imagen." });
         return;
       }
+      if (img.naturalWidth !== SPRITE_WIDTH || img.naturalHeight !== SPRITE_HEIGHT) {
+        resolve({
+          valid: false,
+          image: img,
+          error: `Resolución incorrecta: ${img.naturalWidth}x${img.naturalHeight}; se requiere ${SPRITE_WIDTH}x${SPRITE_HEIGHT}.`
+        });
+        return;
+      }
 
       try {
-        // La cuadrícula es fija (5 columnas x 3 filas), pero la resolución
-        // puede variar: cada celda se calcula proporcionalmente a la imagen.
-        const sheetCanvas = document.createElement("canvas");
-        sheetCanvas.width = img.naturalWidth;
-        sheetCanvas.height = img.naturalHeight;
-        const sheetContext = sheetCanvas.getContext("2d", { willReadFrequently: true });
-        sheetContext.drawImage(img, 0, 0);
-        const imageData = sheetContext.getImageData(0, 0, sheetCanvas.width, sheetCanvas.height);
-        const pixels = imageData.data;
+        const analysisCanvas = document.createElement("canvas");
+        analysisCanvas.width = SPRITE_WIDTH;
+        analysisCanvas.height = SPRITE_HEIGHT;
+        const analysisContext = analysisCanvas.getContext("2d", { willReadFrequently: true });
+        analysisContext.clearRect(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
+        analysisContext.drawImage(img, 0, 0);
+        const pixels = analysisContext.getImageData(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT).data;
         const frames = [];
 
         for (let row = 0; row < SPRITE_ROWS; row++) {
           for (let column = 0; column < SPRITE_COLUMNS; column++) {
-            const cellLeft = Math.round(column * img.naturalWidth / SPRITE_COLUMNS);
-            const cellRight = Math.round((column + 1) * img.naturalWidth / SPRITE_COLUMNS);
-            const cellTop = Math.round(row * img.naturalHeight / SPRITE_ROWS);
-            const cellBottom = Math.round((row + 1) * img.naturalHeight / SPRITE_ROWS);
-            const cellWidth = cellRight - cellLeft;
-            const cellHeight = cellBottom - cellTop;
+            const cellLeft = Math.round(column * SPRITE_WIDTH / SPRITE_COLUMNS);
+            const cellRight = Math.round((column + 1) * SPRITE_WIDTH / SPRITE_COLUMNS);
+            const cellTop = Math.round(row * SPRITE_HEIGHT / SPRITE_ROWS);
+            const cellBottom = Math.round((row + 1) * SPRITE_HEIGHT / SPRITE_ROWS);
+            let minX = cellRight, minY = cellBottom, maxX = -1, maxY = -1;
 
-            // Elimina únicamente el fondo blanco conectado al borde de ESTA celda.
-            // Así conserva detalles blancos interiores (por ejemplo, las botas).
-            const queue = new Int32Array(cellWidth * cellHeight);
-            let head = 0;
-            let tail = 0;
-            const isBackground = (localX, localY) => {
-              const index = ((cellTop + localY) * img.naturalWidth + cellLeft + localX) * 4;
-              return pixels[index + 3] > 8 &&
-                pixels[index] >= 232 && pixels[index + 1] >= 232 && pixels[index + 2] >= 232;
-            };
-            const enqueue = (localX, localY) => {
-              if (localX < 0 || localY < 0 || localX >= cellWidth || localY >= cellHeight) return;
-              const localIndex = localY * cellWidth + localX;
-              const pixelIndex = ((cellTop + localY) * img.naturalWidth + cellLeft + localX) * 4;
-              if (pixels[pixelIndex + 3] <= 8 || !isBackground(localX, localY)) return;
-              pixels[pixelIndex + 3] = 0;
-              queue[tail++] = localIndex;
-            };
-
-            for (let x = 0; x < cellWidth; x++) {
-              enqueue(x, 0);
-              enqueue(x, cellHeight - 1);
-            }
-            for (let y = 1; y < cellHeight - 1; y++) {
-              enqueue(0, y);
-              enqueue(cellWidth - 1, y);
-            }
-
-            while (head < tail) {
-              const localIndex = queue[head++];
-              const x = localIndex % cellWidth;
-              const y = Math.floor(localIndex / cellWidth);
-              enqueue(x - 1, y);
-              enqueue(x + 1, y);
-              enqueue(x, y - 1);
-              enqueue(x, y + 1);
-            }
-
-            let minX = cellWidth, minY = cellHeight, maxX = -1, maxY = -1;
-            for (let y = 0; y < cellHeight; y++) {
-              for (let x = 0; x < cellWidth; x++) {
-                const alpha = pixels[((cellTop + y) * img.naturalWidth + cellLeft + x) * 4 + 3];
+            for (let y = cellTop; y < cellBottom; y++) {
+              for (let x = cellLeft; x < cellRight; x++) {
+                const alpha = pixels[(y * SPRITE_WIDTH + x) * 4 + 3];
                 if (alpha > 8) {
                   if (x < minX) minX = x;
                   if (x > maxX) maxX = x;
@@ -146,26 +112,18 @@ function prepareSpriteSheet(src) {
               resolve({ valid: false, image: img, error: `La celda ${row * SPRITE_COLUMNS + column + 1} está vacía.` });
               return;
             }
-
-            // Un pequeño margen evita cortar contornos sin permitir invadir otra celda.
-            const padding = 2;
-            minX = Math.max(0, minX - padding);
-            minY = Math.max(0, minY - padding);
-            maxX = Math.min(cellWidth - 1, maxX + padding);
-            maxY = Math.min(cellHeight - 1, maxY + padding);
             frames.push({
-              sx: cellLeft + minX,
-              sy: cellTop + minY,
+              sx: minX,
+              sy: minY,
               sw: maxX - minX + 1,
               sh: maxY - minY + 1
             });
           }
         }
 
-        sheetContext.putImageData(imageData, 0, 0);
-        resolve({ valid: true, image: sheetCanvas, frames });
+        resolve({ valid: true, image: img, frames });
       } catch (error) {
-        resolve({ valid: false, image: img, error: `No se pudo preparar la cuadrícula: ${error.message}` });
+        resolve({ valid: false, image: img, error: `No se pudo analizar la transparencia: ${error.message}` });
       }
     };
 
@@ -179,7 +137,6 @@ function prepareSpriteSheet(src) {
   spriteSheetCache.set(src, promise);
   return promise;
 }
-
 const audio = {
   menu: new Audio(ASSET.menuMusic),
   champions: new Audio(ASSET.championsMusic),
