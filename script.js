@@ -1785,14 +1785,16 @@ function drawCharacter(character) {
       ? Math.floor(character.animationTime / animation.frameDuration) % animation.frames.length
       : Math.min(animation.frames.length - 1, Math.floor(character.animationTime / animation.frameDuration));
     frame = sheet.frames[animation.frames[framePosition]];
-  } else {
-    // Fallback visible para hojas que no superan la validación: recorta la primera celda
-    // proporcionalmente y deja constancia para que el recurso pueda corregirse.
+  } else if (image.naturalWidth === SPRITE_WIDTH && image.naturalHeight === SPRITE_HEIGHT) {
+    // Si la cuadrícula tiene la resolución oficial pero falla una celda, usa solo la primera.
     frame = {
       sx: 0, sy: 0,
-      sw: image.naturalWidth / SPRITE_COLUMNS,
-      sh: image.naturalHeight / SPRITE_ROWS
+      sw: SPRITE_WIDTH / SPRITE_COLUMNS,
+      sh: SPRITE_HEIGHT / SPRITE_ROWS
     };
+  } else {
+    // Los recursos antiguos de un solo personaje se dibujan completos, no como una celda recortada.
+    frame = { sx: 0, sy: 0, sw: image.naturalWidth, sh: image.naturalHeight };
   }
   if (!frame) return;
 
