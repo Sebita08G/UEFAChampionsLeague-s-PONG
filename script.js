@@ -69,36 +69,65 @@ function prepareSpriteSheet(src) {
         resolve({ valid: false, image: img, error: "No se pudo cargar la imagen." });
         return;
       }
-      if (img.naturalWidth !== SPRITE_WIDTH || img.naturalHeight !== SPRITE_HEIGHT) {
+
+      // Se admiten dos estándares: el formato clásico 5x3 y el nuevo 5x2.
+      let layout;
+      if (img.naturalWidth === 1236 && img.naturalHeight === 1272) {
+        layout = {
+          width: 1236,
+          height: 1272,
+          columns: 5,
+          rows: 3,
+          animations: SPRITE_ANIMATIONS
+        };
+      } else if (img.naturalWidth === 1535 && img.naturalHeight === 1024) {
+        layout = {
+          width: 1535,
+          height: 1024,
+          columns: 5,
+          rows: 2,
+          animations: {
+            // Orden secuencial de izquierda a derecha y de arriba abajo.
+            idle: { frames: [0, 1], frameDuration: 0.55, loop: true },
+            run: { frames: [2, 3], frameDuration: 0.12, loop: true },
+            kick: { frames: [4, 5], frameDuration: 0.18, loop: false },
+            celebrate: { frames: [6, 7], frameDuration: 0.24, loop: true },
+            // La derrota termina en el segundo fotograma y permanece allí.
+            lose: { frames: [8, 9], frameDuration: 0.42, loop: false }
+          }
+        };
+      } else {
         resolve({
           valid: false,
           image: img,
-          error: `Resolución incorrecta: ${img.naturalWidth}x${img.naturalHeight}; se requiere ${SPRITE_WIDTH}x${SPRITE_HEIGHT}.`
+          error: `Resolución no compatible: ${img.naturalWidth}x${img.naturalHeight}. Se admite 1236x1272 o 1535x1024.`
         });
         return;
       }
 
       try {
+        const { width, height, columns, rows, animations } = layout;
         const analysisCanvas = document.createElement("canvas");
-        analysisCanvas.width = SPRITE_WIDTH;
-        analysisCanvas.height = SPRITE_HEIGHT;
+        analysisCanvas.width = width;
+        analysisCanvas.height = height;
         const analysisContext = analysisCanvas.getContext("2d", { willReadFrequently: true });
-        analysisContext.clearRect(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
+        analysisContext.clearRect(0, 0, width, height);
         analysisContext.drawImage(img, 0, 0);
-        const pixels = analysisContext.getImageData(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT).data;
+        const pixels = analysisContext.getImageData(0, 0, width, height).data;
         const frames = [];
 
-        for (let row = 0; row < SPRITE_ROWS; row++) {
-          for (let column = 0; column < SPRITE_COLUMNS; column++) {
-            const cellLeft = Math.round(column * SPRITE_WIDTH / SPRITE_COLUMNS);
-            const cellRight = Math.round((column + 1) * SPRITE_WIDTH / SPRITE_COLUMNS);
-            const cellTop = Math.round(row * SPRITE_HEIGHT / SPRITE_ROWS);
-            const cellBottom = Math.round((row + 1) * SPRITE_HEIGHT / SPRITE_ROWS);
+        // Se analiza cada celda una sola vez durante la precarga del club.
+        for (let row = 0; row < rows; row++) {
+          for (let column = 0; column < columns; column++) {
+            const cellLeft = Math.round(column * width / columns);
+            const cellRight = Math.round((column + 1) * width / columns);
+            const cellTop = Math.round(row * height / rows);
+            const cellBottom = Math.round((row + 1) * height / rows);
             let minX = cellRight, minY = cellBottom, maxX = -1, maxY = -1;
 
             for (let y = cellTop; y < cellBottom; y++) {
               for (let x = cellLeft; x < cellRight; x++) {
-                const alpha = pixels[(y * SPRITE_WIDTH + x) * 4 + 3];
+                const alpha = pixels[(y * width + x) * 4 + 3];
                 if (alpha > 8) {
                   if (x < minX) minX = x;
                   if (x > maxX) maxX = x;
@@ -108,8 +137,9 @@ function prepareSpriteSheet(src) {
               }
             }
 
+            const frameNumber = row * columns + column + 1;
             if (maxX < minX || maxY < minY) {
-              resolve({ valid: false, image: img, error: `La celda ${row * SPRITE_COLUMNS + column + 1} está vacía.` });
+              resolve({ valid: false, image: img, error: `La celda ${frameNumber} está vacía.` });
               return;
             }
             frames.push({
@@ -121,7 +151,7 @@ function prepareSpriteSheet(src) {
           }
         }
 
-        resolve({ valid: true, image: img, frames });
+        resolve({ valid: true, image: img, frames, animations, columns, rows });
       } catch (error) {
         resolve({ valid: false, image: img, error: `No se pudo analizar la transparencia: ${error.message}` });
       }
@@ -1880,7 +1910,8 @@ function drawCharacter(character) {
 
   let frame;
   if (sheet?.valid) {
-    const animation = SPRITE_ANIMATIONS[character.animationState] || SPRITE_ANIMATIONS.idle;
+    const animations = sheet.animations || SPRITE_ANIMATIONS;
+    const animation = animations[character.animationState] || animations.idle;
     const framePosition = animation.loop
       ? Math.floor(character.animationTime / animation.frameDuration) % animation.frames.length
       : Math.min(animation.frames.length - 1, Math.floor(character.animationTime / animation.frameDuration));
