@@ -36,6 +36,7 @@ const ASSET = {
   stage: "images/stages/stadium.png",
   ball: "images/items/ball.png",
   menuMusic: "audio/music/main_menu.mp3",
+  championsMusic: "audio/music/champions.mp3",
   goal: "audio/sounds/GOAL.mp3",
   missed: "audio/sounds/MISSED.mp3",
   kick: "audio/sounds/kick.mp3",
@@ -51,6 +52,7 @@ const screens = {
   competitionSetup: document.getElementById("competitionSetupScreen"),
   champions: document.getElementById("championsScreen"),
   bracket: document.getElementById("bracketScreen"),
+  matchPresentation: document.getElementById("matchPresentationScreen"),
   game: document.getElementById("gameScreen")
 };
 
@@ -137,6 +139,7 @@ function prepareSpriteSheet(src) {
 }
 const audio = {
   menu: new Audio(ASSET.menuMusic),
+  champions: new Audio(ASSET.championsMusic),
   goal: new Audio(ASSET.goal),
   missed: new Audio(ASSET.missed),
   kick: new Audio(ASSET.kick),
@@ -145,6 +148,8 @@ const audio = {
   crowd: new Audio(ASSET.crowd)
 };
 audio.menu.loop = true;
+audio.champions.loop = true;
+audio.champions.volume = 0.55;
 audio.crowd.loop = true;
 audio.menu.volume = 0.45;
 audio.crowd.volume = 0.28;
@@ -229,7 +234,9 @@ function startMenuMusic() {
 }
 
 function startMatchMusic() {
-  // Durante el partido solo suena la afición; no se reproduce champions.mp3.
+  // La música de Champions solo se reproduce en las pantallas de presentación.
+  audio.champions.pause();
+  audio.champions.currentTime = 0;
   audio.menu.pause();
   audio.crowd.currentTime = 0;
   audio.crowd.play().catch(() => {});
@@ -519,6 +526,73 @@ function resetBall(direction = Math.random() < 0.5 ? -1 : 1) {
 
 let ball = { x: WIDTH / 2, y: HEIGHT / 2, radius: 15, vx: 5.2, vy: 2, lastHit: null };
 
+function stopPresentationMusic() {
+  audio.champions.pause();
+  audio.champions.currentTime = 0;
+}
+
+function startPresentationMusic() {
+  audio.menu.pause();
+  audio.crowd.pause();
+  audio.champions.currentTime = 0;
+  audio.champions.play().catch(() => {});
+}
+
+function getPresentationSides() {
+  const swapped = currentHalf >= 2;
+  const teams = swapped ? [...matchTeams].reverse() : [...matchTeams];
+  const goals = swapped ? [...score].reverse() : [...score];
+  const extra = swapped ? [...extraTimeGoals].reverse() : [...extraTimeGoals];
+  return {
+    home: teams[0]?.club,
+    away: teams[1]?.club,
+    homeGoals: goals[0] + (extraTimeActive ? extra[0] : 0),
+    awayGoals: goals[1] + (extraTimeActive ? extra[1] : 0)
+  };
+}
+
+function showMatchPresentation(kind, buttonLabel, callback, finalHeadline = "") {
+  const sides = getPresentationSides();
+  const heading = document.getElementById("presentationHeading");
+  const subtitle = document.getElementById("presentationSubtitle");
+  const scoreLine = document.getElementById("presentationScore");
+  const homeShield = document.getElementById("presentationHomeShield");
+  const awayShield = document.getElementById("presentationAwayShield");
+
+  heading.textContent = kind === "intro" ? "PRESENTACIÓN DEL PARTIDO"
+    : kind === "halftime" ? "DESCANSO" : (finalHeadline || "RESULTADO FINAL");
+  subtitle.textContent = kind === "intro"
+    ? (tournamentMode && tournament?.kind === "individual"
+      ? (tournament.round === "final" ? "FINAL · UEFA CHAMPIONS LEAGUE" : `SEMIFINAL · ${tournament.leg === 1 ? "IDA" : "VUELTA"}`)
+      : tournamentMode ? "UEFA CHAMPIONS LEAGUE" : "MODO AMISTOSO")
+    : kind === "halftime" ? "CAMBIO DE CAMPO · SEGUNDA PARTE"
+      : (extraTimeActive ? "RESULTADO INCLUYENDO LA PRÓRROGA" : "PARTIDO FINALIZADO");
+
+  homeShield.src = new URL(sides.home.club_shield, PROJECT_BASE).href;
+  awayShield.src = new URL(sides.away.club_shield, PROJECT_BASE).href;
+  homeShield.alt = `Escudo de ${sides.home.club_name}`;
+  awayShield.alt = `Escudo de ${sides.away.club_name}`;
+  document.getElementById("presentationHomeName").textContent = sides.home.club_name;
+  document.getElementById("presentationAwayName").textContent = sides.away.club_name;
+  scoreLine.textContent = kind === "intro" ? "VS" : `${sides.homeGoals}  —  ${sides.awayGoals}`;
+  scoreLine.classList.toggle("presentation-vs", kind === "intro");
+
+  const button = document.getElementById("presentationButton");
+  button.textContent = buttonLabel;
+  button.onclick = () => {
+    stopPresentationMusic();
+    callback();
+  };
+  startPresentationMusic();
+  showScreen("matchPresentation");
+}
+
+function launchMatchFromPresentation() {
+  document.getElementById("matchOverlay").classList.add("hidden");
+  document.getElementById("viewBracket").classList.toggle("hidden", !tournamentMode);
+  showMatchPresentation("intro", "EMPEZAR PARTIDO", launchMatchFromPresentation);
+}
+
 function beginMatch() {
   tournamentMode = false;
   tournament = null;
@@ -596,15 +670,21 @@ function updateClubHudBars(elementId, club) {
 }
 
 function updateHud() {
-  const left = matchTeams[0];
-  const right = matchTeams[1];
+  // El array se invierte físicamente en el descanso, pero la retransmisión
+  // conserva siempre al local a la izquierda y al visitante a la derecha.
+  const swapped = currentHalf >= 2;
+  const displayTeams = swapped ? [...matchTeams].reverse() : matchTeams;
+  const displayScore = swapped ? [...score].reverse() : score;
+  const displayExtra = swapped ? [...extraTimeGoals].reverse() : extraTimeGoals;
+  const left = displayTeams[0];
+  const right = displayTeams[1];
   if (!left || !right) return;
   document.getElementById("leftClubName").textContent = left.club.club_acronym || left.club.club_name.slice(0, 3).toUpperCase();
   document.getElementById("rightClubName").textContent = right.club.club_acronym || right.club.club_name.slice(0, 3).toUpperCase();
   updateClubHudBars("leftTeamColor", left.club);
   updateClubHudBars("rightTeamColor", right.club);
-  document.getElementById("leftScore").textContent = score[0] + (extraTimeActive ? extraTimeGoals[0] : 0);
-  document.getElementById("rightScore").textContent = score[1] + (extraTimeActive ? extraTimeGoals[1] : 0);
+  document.getElementById("leftScore").textContent = displayScore[0] + (extraTimeActive ? displayExtra[0] : 0);
+  document.getElementById("rightScore").textContent = displayScore[1] + (extraTimeActive ? displayExtra[1] : 0);
   document.getElementById("halfLabel").textContent =
     currentHalf === 1 ? "1.ª PARTE" : currentHalf === 2 ? "2.ª PARTE" : "PRÓRROGA";
   updateTimerDisplay();
@@ -1066,16 +1146,16 @@ function beginSecondHalf() {
   matchState = "kickoff";
   prepareKickoffPositions();
   updateHud();
-  showMatchOverlay("DESCANSO", "Cambio de campo. El equipo visitante realizará el saque inicial de la segunda parte.", "EMPEZAR 2.ª PARTE", () => {
-    document.getElementById("matchOverlay").classList.add("hidden");
+  matchState = "halftime";
+  showMatchPresentation("halftime", "EMPEZAR SEGUNDA PARTE", () => {
     clockRunning = false;
     matchState = "kickoff";
     cpuKickoffTimer = 0;
     prepareKickoffPositions();
-    lastFrame = performance.now();
+    updateHud();
     updateControlsText();
+    launchMatchFromPresentation();
   });
-  matchState = "halftime";
 }
 
 function showMatchOverlay(title, message, buttonText, callback) {
@@ -1124,15 +1204,16 @@ function finishMatch(winnerIndex, title) {
   const revealResult = () => {
     if (matchState !== "final_whistle") return;
     matchState = "finished";
-    if (tournamentMode) {
-      handleTournamentMatchEnd(winnerIndex, message);
-      return;
-    }
-    showMatchOverlay(resultTitle, message, "VOLVER AL MENÚ", () => {
+    const finalHeadline = winnerIndex === null ? "¡EMPATE!" : `¡${matchTeams[winnerIndex].club.club_name.toUpperCase()} GANA!`;
+    showMatchPresentation("final", tournamentMode ? "CONTINUAR" : "VOLVER AL MENÚ", () => {
+      if (tournamentMode) {
+        handleTournamentMatchEnd(winnerIndex, message);
+        return;
+      }
       matchState = "stopped";
       showScreen("menu");
       startMenuMusic();
-    });
+    }, finalHeadline);
   };
 
   // La pantalla de resultado aparece únicamente cuando termina el audio.
@@ -1231,11 +1312,7 @@ function startTournamentMatch(opponent, leg) {
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
   document.getElementById("viewBracket").classList.remove("hidden");
-  showScreen("game");
-  startMatchMusic();
-  lastFrame = performance.now();
-  cancelAnimationFrame(animationFrame);
-  animationFrame = requestAnimationFrame(gameLoop);
+  showMatchPresentation("intro", "EMPEZAR PARTIDO", launchMatchFromPresentation);
 }
 
 function showTournamentBracket(status, message, buttonLabel, action) {
@@ -1513,11 +1590,7 @@ function launchCompetitionMatch(leftClub, rightClub) {
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
   document.getElementById("viewBracket").classList.remove("hidden");
-  showScreen("game");
-  startMatchMusic();
-  lastFrame = performance.now();
-  cancelAnimationFrame(animationFrame);
-  animationFrame = requestAnimationFrame(gameLoop);
+  showMatchPresentation("intro", "EMPEZAR PARTIDO", launchMatchFromPresentation);
 }
 function startCompetitionMatch() {
   const [leftClub, rightClub] = getCompetitionMatchClubs();
