@@ -70,37 +70,51 @@ function prepareSpriteSheet(src) {
         return;
       }
 
-      // Se admiten dos estándares: el formato clásico 5x3 y el nuevo 5x2.
+      // Formatos admitidos:
+      // - Clásico: 5 columnas x 3 filas (1236x1272).
+      // - Nuevo: 5 columnas x 2 filas (1535x1024).
+      // Se toleran pequeñas variaciones de resolución para evitar rechazar
+      // sprites exportados con uno o dos píxeles extra.
       let layout;
       if (img.naturalWidth === 1236 && img.naturalHeight === 1272) {
         layout = {
-          width: 1236,
-          height: 1272,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
           columns: 5,
           rows: 3,
           animations: SPRITE_ANIMATIONS
         };
-      } else if (img.naturalWidth === 1535 && img.naturalHeight === 1024) {
-        layout = {
-          width: 1535,
-          height: 1024,
-          columns: 5,
-          rows: 2,
-          animations: {
-            // Orden secuencial de izquierda a derecha y de arriba abajo.
-            idle: { frames: [0, 1], frameDuration: 0.55, loop: true },
-            run: { frames: [2, 3], frameDuration: 0.12, loop: true },
-            kick: { frames: [4, 5], frameDuration: 0.18, loop: false },
-            celebrate: { frames: [6, 7], frameDuration: 0.24, loop: true },
-            // La derrota termina en el segundo fotograma y permanece allí.
-            lose: { frames: [8, 9], frameDuration: 0.42, loop: false }
-          }
-        };
       } else {
+        const ratio = img.naturalWidth / img.naturalHeight;
+        const isNewFiveByTwo = img.naturalWidth >= 1500 &&
+          img.naturalWidth <= 1600 &&
+          img.naturalHeight >= 980 &&
+          img.naturalHeight <= 1100 &&
+          ratio >= 1.40 && ratio <= 1.60;
+
+        if (isNewFiveByTwo) {
+          layout = {
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            columns: 5,
+            rows: 2,
+            animations: {
+              idle: { frames: [0, 1], frameDuration: 0.55, loop: true },
+              run: { frames: [2, 3], frameDuration: 0.12, loop: true },
+              kick: { frames: [4, 5], frameDuration: 0.18, loop: false },
+              celebrate: { frames: [6, 7], frameDuration: 0.24, loop: true },
+              // La derrota termina en el segundo fotograma y permanece allí.
+              lose: { frames: [8, 9], frameDuration: 0.42, loop: false }
+            }
+          };
+        }
+      }
+
+      if (!layout) {
         resolve({
           valid: false,
           image: img,
-          error: `Resolución no compatible: ${img.naturalWidth}x${img.naturalHeight}. Se admite 1236x1272 o 1535x1024.`
+          error: `Resolución no compatible: ${img.naturalWidth}x${img.naturalHeight}. Se admite el formato clásico 1236x1272 o el nuevo formato 5x2.`
         });
         return;
       }
@@ -116,13 +130,16 @@ function prepareSpriteSheet(src) {
         const pixels = analysisContext.getImageData(0, 0, width, height).data;
         const frames = [];
 
-        // Se analiza cada celda una sola vez durante la precarga del club.
+        // Cada fotograma queda limitado estrictamente a su celda.
+        // Se recorta el contenido transparente dentro de ella, pero si una
+        // celda no permite detectar píxeles visibles se conserva la celda
+        // completa: nunca se invalida toda la hoja ni se dibuja el sprite entero.
         for (let row = 0; row < rows; row++) {
           for (let column = 0; column < columns; column++) {
-            const cellLeft = Math.round(column * width / columns);
-            const cellRight = Math.round((column + 1) * width / columns);
-            const cellTop = Math.round(row * height / rows);
-            const cellBottom = Math.round((row + 1) * height / rows);
+            const cellLeft = Math.floor(column * width / columns);
+            const cellRight = Math.floor((column + 1) * width / columns);
+            const cellTop = Math.floor(row * height / rows);
+            const cellBottom = Math.floor((row + 1) * height / rows);
             let minX = cellRight, minY = cellBottom, maxX = -1, maxY = -1;
 
             for (let y = cellTop; y < cellBottom; y++) {
@@ -137,23 +154,41 @@ function prepareSpriteSheet(src) {
               }
             }
 
-            const frameNumber = row * columns + column + 1;
             if (maxX < minX || maxY < minY) {
-              resolve({ valid: false, image: img, error: `La celda ${frameNumber} está vacía.` });
-              return;
+              frames.push({
+                sx: cellLeft,
+                sy: cellTop,
+                sw: cellRight - cellLeft,
+                sh: cellBottom - cellTop
+              });
+            } else {
+              // Un pequeño margen evita cortar contornos por el antialiasing.
+              const pad = 2;
+              const sx = Math.max(cellLeft, minX - pad);
+              const sy = Math.max(cellTop, minY - pad);
+              const right = Math.min(cellRight, maxX + 1 + pad);
+              const bottom = Math.min(cellBottom, maxY + 1 + pad);
+              frames.push({ sx, sy, sw: right - sx, sh: bottom - sy });
             }
-            frames.push({
-              sx: minX,
-              sy: minY,
-              sw: maxX - minX + 1,
-              sh: maxY - minY + 1
-            });
           }
         }
 
         resolve({ valid: true, image: img, frames, animations, columns, rows });
       } catch (error) {
-        resolve({ valid: false, image: img, error: `No se pudo analizar la transparencia: ${error.message}` });
+        // Mantener la hoja recortada por celdas incluso si falla el análisis
+        // de transparencia (por ejemplo, por un PNG con fondo no transparente).
+        const { width, height, columns, rows, animations } = layout;
+        const frames = [];
+        for (let row = 0; row < rows; row++) {
+          for (let column = 0; column < columns; column++) {
+            const left = Math.floor(column * width / columns);
+            const right = Math.floor((column + 1) * width / columns);
+            const top = Math.floor(row * height / rows);
+            const bottom = Math.floor((row + 1) * height / rows);
+            frames.push({ sx: left, sy: top, sw: right - left, sh: bottom - top });
+          }
+        }
+        resolve({ valid: true, image: img, frames, animations, columns, rows, warning: error.message });
       }
     };
 
