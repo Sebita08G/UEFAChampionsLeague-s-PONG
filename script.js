@@ -478,21 +478,30 @@ function placeTeams() {
   right.goalkeeper.y = GOAL.right.y + (GOAL.right.height - right.goalkeeper.height) / 2;
 }
 
-// En cada saque, el jugador que ejecuta se coloca en el centro del campo.
-// El resto conserva su posición de referencia: campo propio o centro de portería.
+// En cada saque, el jugador que ejecuta se coloca cerca del centro,
+// pero siempre dentro de los límites en los que podrá moverse durante el partido.
+// Así no hay un salto de posición al pasar del saque al juego normal.
 function prepareKickoffPositions() {
   placeTeams();
   const team = matchTeams[kickoffTeam];
   if (!team) return;
 
-  const midpoint = (FIELD.left + FIELD.right) / 2;
   const centerY = (FIELD.top + FIELD.bottom) / 2;
-  team.player.x = midpoint - team.player.width / 2;
+
+  // Mantiene exactamente los mismos límites horizontales que moveCharacter().
+  const kickoffMinX = kickoffTeam === 0 ? FIELD.left + 55 : WIDTH * 0.52;
+  const kickoffMaxX = kickoffTeam === 0
+    ? WIDTH * 0.46 - team.player.width
+    : FIELD.right - 55 - team.player.width;
+
+  // El jugador local queda en el extremo interior de su mitad y el visitante
+  // en el extremo interior de la suya, ambos cerca del círculo central.
+  team.player.x = kickoffTeam === 0 ? kickoffMaxX : kickoffMinX;
   team.player.y = centerY - team.player.height / 2;
 
   const direction = kickoffTeam === 0 ? 1 : -1;
   ball.radius = 15;
-  ball.x = midpoint + direction * (team.player.width / 2 + ball.radius + 2);
+  ball.x = team.player.x + team.player.width / 2 + direction * (team.player.width / 2 + ball.radius + 2);
   ball.y = centerY;
   ball.vx = 0;
   ball.vy = 0;
