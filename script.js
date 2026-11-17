@@ -140,10 +140,17 @@ function prepareSpriteSheet(src) {
             const cellRight = Math.floor((column + 1) * width / columns);
             const cellTop = Math.floor(row * height / rows);
             const cellBottom = Math.floor((row + 1) * height / rows);
-            let minX = cellRight, minY = cellBottom, maxX = -1, maxY = -1;
+            // Zona de seguridad: evita muestrear píxeles del fotograma vecino
+            // cuando el dibujo o el antialiasing llega hasta el borde de la celda.
+            const gutter = 4;
+            const safeLeft = Math.min(cellRight, cellLeft + gutter);
+            const safeRight = Math.max(safeLeft, cellRight - gutter);
+            const safeTop = Math.min(cellBottom, cellTop + gutter);
+            const safeBottom = Math.max(safeTop, cellBottom - gutter);
+            let minX = safeRight, minY = safeBottom, maxX = -1, maxY = -1;
 
-            for (let y = cellTop; y < cellBottom; y++) {
-              for (let x = cellLeft; x < cellRight; x++) {
+            for (let y = safeTop; y < safeBottom; y++) {
+              for (let x = safeLeft; x < safeRight; x++) {
                 const alpha = pixels[(y * width + x) * 4 + 3];
                 if (alpha > 8) {
                   if (x < minX) minX = x;
@@ -1944,33 +1951,51 @@ function drawCharacter(character) {
   if (!image?.complete || !image.naturalWidth) return;
 
   let frame;
+  let framePosition = 0;
   if (sheet?.valid) {
     const animations = sheet.animations || SPRITE_ANIMATIONS;
     const animation = animations[character.animationState] || animations.idle;
-    const framePosition = animation.loop
+    framePosition = animation.loop
       ? Math.floor(character.animationTime / animation.frameDuration) % animation.frames.length
       : Math.min(animation.frames.length - 1, Math.floor(character.animationTime / animation.frameDuration));
     frame = sheet.frames[animation.frames[framePosition]];
   } else if (image.naturalWidth === SPRITE_WIDTH && image.naturalHeight === SPRITE_HEIGHT) {
-    // Si la cuadrícula tiene la resolución oficial pero falla una celda, usa solo la primera.
     frame = {
       sx: 0, sy: 0,
       sw: SPRITE_WIDTH / SPRITE_COLUMNS,
       sh: SPRITE_HEIGHT / SPRITE_ROWS
     };
   } else {
-    // Los recursos antiguos de un solo personaje se dibujan completos, no como una celda recortada.
     frame = { sx: 0, sy: 0, sw: image.naturalWidth, sh: image.naturalHeight };
   }
   if (!frame) return;
 
-  const scale = Math.min(character.width / frame.sw, character.height / frame.sh);
+  // Dibuja dentro de una zona algo menor para dar margen entre fotogramas
+  // y evitar que los contornos o el suavizado revelen celdas adyacentes.
+  const baseScale = Math.min(
+    (character.width * 0.90) / frame.sw,
+    (character.height * 0.90) / frame.sh
+  );
+  // La segunda pose de derrota (personaje arrodillado/sentado) ocupa más
+  // superficie visual: se reduce para mantenerla proporcionada al resto.
+  const isFinalLoseFrame = character.animationState === "lose" && framePosition === 1;
+  const scale = baseScale * (isFinalLoseFrame ? 0.78 : 1);
   const drawWidth = frame.sw * scale;
   const drawHeight = frame.sh * scale;
   const drawX = character.x + (character.width - drawWidth) / 2;
   const drawY = character.y + character.height - drawHeight;
 
-  ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, drawX, drawY, drawWidth, drawHeight);
+  ctx.save();
+  // El equipo visitante (lado derecho) mira hacia su propia portería:
+  // se refleja horizontalmente el sprite sin alterar su posición ni hitbox.
+  if (character.teamIndex === 1) {
+    ctx.translate(drawX * 2 + drawWidth, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, drawX, drawY, drawWidth, drawHeight);
+  } else {
+    ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, drawX, drawY, drawWidth, drawHeight);
+  }
+  ctx.restore();
 }
 function drawBall() {
   if (ballImage.complete && ballImage.naturalWidth) {
