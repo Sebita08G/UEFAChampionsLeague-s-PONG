@@ -20,13 +20,13 @@ const SPRITE_ROWS = 3;
 const SPRITE_WIDTH = 1236;
 const SPRITE_HEIGHT = 1272;
 const SPRITE_ANIMATIONS = {
-  idle: { frames: [0, 1, 2], frameDuration: 0.55, loop: true },
-  run: { frames: [3, 4, 5, 6, 7, 8, 9], frameDuration: 0.095, loop: true },
-  celebrate: { frames: [10, 11], frameDuration: 0.24, loop: true },
-  lose: { frames: [13, 14], frameDuration: 0.42, loop: true },
-  // La hoja actual no contiene una pose inequívoca de golpeo.
-  // Se utiliza temporalmente un fotograma de carrera durante el contacto.
-  kick: { frames: [9], frameDuration: 0.55, loop: false }
+  // Cada columna representa una animación; sus tres fotogramas están en vertical.
+  // El análisis almacena las celdas por filas, por eso cada columna usa índices separados por 5.
+  idle: { frames: [0, 5, 10], frameDuration: 0.55, loop: true },
+  run: { frames: [1, 6, 11], frameDuration: 0.12, loop: true },
+  kick: { frames: [2, 7, 12], frameDuration: 0.18, loop: false },
+  celebrate: { frames: [3, 8, 13], frameDuration: 0.24, loop: true },
+  lose: { frames: [4, 9, 14], frameDuration: 0.42, loop: true }
 };
 
 const PROJECT_BASE = new URL("./", document.baseURI);
