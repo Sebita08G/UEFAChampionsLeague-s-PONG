@@ -456,39 +456,44 @@ function createTeam(club, index) {
 function placeTeams() {
   const left = matchTeams[0];
   const right = matchTeams[1];
+  const midpoint = (FIELD.left + FIELD.right) / 2;
+  const centerY = (FIELD.top + FIELD.bottom) / 2;
 
-  // Posiciones habituales de los cuatro personajes.
-  left.goalkeeper.x = FIELD.left + 45;
-  left.player.x = FIELD.left + 115;
-  right.player.x = FIELD.right - 115 - right.player.width;
-  right.goalkeeper.x = FIELD.right - 45 - right.goalkeeper.width;
+  // Los jugadores de campo esperan en el centro de su propia mitad.
+  left.player.x = (FIELD.left + midpoint) / 2 - left.player.width / 2;
+  right.player.x = (midpoint + FIELD.right) / 2 - right.player.width / 2;
+
+  // Los porteros quedan centrados dentro de sus respectivas porterías.
+  left.goalkeeper.x = GOAL.left.x + (GOAL.left.width - left.goalkeeper.width) / 2;
+  right.goalkeeper.x = GOAL.right.x + (GOAL.right.width - right.goalkeeper.width) / 2;
 
   [left, right].forEach(team => {
     team.goalkeeper.teamIndex = team.index;
     team.player.teamIndex = team.index;
-    team.goalkeeper.y = HEIGHT / 2 - team.goalkeeper.height / 2;
-    team.player.y = HEIGHT / 2 - team.player.height / 2;
+    team.goalkeeper.y = centerY - team.goalkeeper.height / 2;
+    team.player.y = centerY - team.player.height / 2;
   });
+
+  left.goalkeeper.y = GOAL.left.y + (GOAL.left.height - left.goalkeeper.height) / 2;
+  right.goalkeeper.y = GOAL.right.y + (GOAL.right.height - right.goalkeeper.height) / 2;
 }
 
-// Coloca al equipo que saca en formación de saque: el jugador con el balón
-// en los pies, en el centro de su propia mitad.
+// En cada saque, el jugador que ejecuta se coloca en el centro del campo.
+// El resto conserva su posición de referencia: campo propio o centro de portería.
 function prepareKickoffPositions() {
   placeTeams();
   const team = matchTeams[kickoffTeam];
   if (!team) return;
 
   const midpoint = (FIELD.left + FIELD.right) / 2;
-  const ownHalfCenterX = kickoffTeam === 0
-    ? (FIELD.left + midpoint) / 2
-    : (midpoint + FIELD.right) / 2;
-
-  team.player.x = ownHalfCenterX - team.player.width / 2;
-  team.player.y = HEIGHT / 2 - team.player.height / 2;
+  const centerY = (FIELD.top + FIELD.bottom) / 2;
+  team.player.x = midpoint - team.player.width / 2;
+  team.player.y = centerY - team.player.height / 2;
 
   const direction = kickoffTeam === 0 ? 1 : -1;
-  ball.x = team.player.x + team.player.width / 2 + direction * 18;
-  ball.y = team.player.y + team.player.height - ball.radius * 0.55;
+  ball.radius = 15;
+  ball.x = midpoint + direction * (team.player.width / 2 + ball.radius + 2);
+  ball.y = centerY;
   ball.vx = 0;
   ball.vy = 0;
   ball.lastHit = null;
@@ -1045,13 +1050,19 @@ function beginSecondHalf() {
   matchTeams.reverse();
   score.reverse();
   matchTeams.forEach((team, index) => { team.index = index; });
-  placeTeams();
-  resetBall(Math.random() < 0.5 ? -1 : 1);
+
+  // Tras cambiar de campo, el visitante original queda a la izquierda y realiza el saque.
+  kickoffTeam = 0;
+  cpuKickoffTimer = 0;
+  matchState = "kickoff";
+  prepareKickoffPositions();
   updateHud();
-  showMatchOverlay("DESCANSO", "Cambio de campo. ¡Comienza la segunda parte!", "EMPEZAR 2.ª PARTE", () => {
+  showMatchOverlay("DESCANSO", "Cambio de campo. El equipo visitante realizará el saque inicial de la segunda parte.", "EMPEZAR 2.ª PARTE", () => {
     document.getElementById("matchOverlay").classList.add("hidden");
-    clockRunning = true;
-    matchState = "playing";
+    clockRunning = false;
+    matchState = "kickoff";
+    cpuKickoffTimer = 0;
+    prepareKickoffPositions();
     lastFrame = performance.now();
     updateControlsText();
   });
@@ -1764,29 +1775,34 @@ function openTournamentBracket() {
 
 function drawCharacter(character) {
   const sheet = character.spriteSheet;
-  if (!sheet?.valid || !sheet.image?.complete || !sheet.image.naturalWidth) return;
+  const image = sheet?.image || character.image;
+  if (!image?.complete || !image.naturalWidth) return;
 
-  const animation = SPRITE_ANIMATIONS[character.animationState] || SPRITE_ANIMATIONS.idle;
-  const framePosition = animation.loop
-    ? Math.floor(character.animationTime / animation.frameDuration) % animation.frames.length
-    : Math.min(animation.frames.length - 1, Math.floor(character.animationTime / animation.frameDuration));
-  const frameIndex = animation.frames[framePosition];
-  const frame = sheet.frames[frameIndex];
+  let frame;
+  if (sheet?.valid) {
+    const animation = SPRITE_ANIMATIONS[character.animationState] || SPRITE_ANIMATIONS.idle;
+    const framePosition = animation.loop
+      ? Math.floor(character.animationTime / animation.frameDuration) % animation.frames.length
+      : Math.min(animation.frames.length - 1, Math.floor(character.animationTime / animation.frameDuration));
+    frame = sheet.frames[animation.frames[framePosition]];
+  } else {
+    // Fallback visible para hojas que no superan la validación: recorta la primera celda
+    // proporcionalmente y deja constancia para que el recurso pueda corregirse.
+    frame = {
+      sx: 0, sy: 0,
+      sw: image.naturalWidth / SPRITE_COLUMNS,
+      sh: image.naturalHeight / SPRITE_ROWS
+    };
+  }
   if (!frame) return;
 
-  // Conserva la proporción del dibujo y apoya todos los fotogramas en la misma línea de suelo.
   const scale = Math.min(character.width / frame.sw, character.height / frame.sh);
   const drawWidth = frame.sw * scale;
   const drawHeight = frame.sh * scale;
   const drawX = character.x + (character.width - drawWidth) / 2;
   const drawY = character.y + character.height - drawHeight;
 
-  // Los personajes siempre miran de frente: no se espejan al cambiar de equipo.
-  ctx.drawImage(
-    sheet.image,
-    frame.sx, frame.sy, frame.sw, frame.sh,
-    drawX, drawY, drawWidth, drawHeight
-  );
+  ctx.drawImage(image, frame.sx, frame.sy, frame.sw, frame.sh, drawX, drawY, drawWidth, drawHeight);
 }
 function drawBall() {
   if (ballImage.complete && ballImage.naturalWidth) {
