@@ -590,7 +590,12 @@ function showMatchPresentation(kind, buttonLabel, callback, finalHeadline = "") 
 function launchMatchFromPresentation() {
   document.getElementById("matchOverlay").classList.add("hidden");
   document.getElementById("viewBracket").classList.toggle("hidden", !tournamentMode);
-  showMatchPresentation("intro", "EMPEZAR PARTIDO", launchMatchFromPresentation);
+  showScreen("game");
+  startMatchMusic();
+  updateControlsText();
+  lastFrame = performance.now();
+  cancelAnimationFrame(animationFrame);
+  animationFrame = requestAnimationFrame(gameLoop);
 }
 
 function beginMatch() {
@@ -641,12 +646,7 @@ function beginMatch() {
   updateControlsText();
   document.getElementById("matchOverlay").classList.add("hidden");
   document.getElementById("viewBracket").classList.toggle("hidden", !tournamentMode);
-  showScreen("game");
-  startMatchMusic();
-  updateControlsText();
-  lastFrame = performance.now();
-  cancelAnimationFrame(animationFrame);
-  animationFrame = requestAnimationFrame(gameLoop);
+  showMatchPresentation("intro", "EMPEZAR PARTIDO", launchMatchFromPresentation);
 }
 
 function getClubHudColors(club) {
@@ -1074,7 +1074,7 @@ function updateMatch(dt) {
     if (remainingTime <= 0) {
       clockRunning = false;
       if (currentHalf === 1) {
-        beginSecondHalf();
+        playPeriodEndWhistle(beginSecondHalf);
       } else if (score[0] === score[1] && tournamentMode && tournament.round === "final") {
         startExtraTime("La final ha terminado empatada. ¡Comienza la prórroga! El primero en marcar 2 goles será campeón.");
       } else if (score[0] === score[1]) {
@@ -1130,6 +1130,24 @@ function startExtraTime(message) {
       updateControlsText();
     }
   );
+}
+
+function playPeriodEndWhistle(onComplete) {
+  // Congela el juego y espera a que termine el silbato antes de cambiar de pantalla.
+  clockRunning = false;
+  keys = {};
+  matchState = "period_whistle";
+  audio.whistle.pause();
+  audio.whistle.currentTime = 0;
+  audio.finalWhistle.pause();
+  audio.finalWhistle.currentTime = 0;
+  audio.crowd.pause();
+  const finishPeriod = () => {
+    if (matchState !== "period_whistle") return;
+    onComplete();
+  };
+  audio.finalWhistle.onended = finishPeriod;
+  audio.finalWhistle.play().catch(finishPeriod);
 }
 
 function beginSecondHalf() {
